@@ -173,6 +173,7 @@ enum class MeloXSymbol(
     Apps("circle.grid.2x2.fill", "apps"),
     Microphone("mic", "mic"),
     Storage("internaldrive", "storage"),
+    Cloud("icloud", "cloud"),
     Bug("ladybug", "bug_report"),
     Play("play.fill", "play_arrow"),
     Pause("pause.fill", "pause"),
@@ -1415,6 +1416,7 @@ fun MeloXActionIcon(
         MeloXSymbol.Apps -> "页面布局"
         MeloXSymbol.Microphone -> "听歌识曲"
         MeloXSymbol.Storage -> "存储"
+        MeloXSymbol.Cloud -> "云盘"
         MeloXSymbol.Settings -> "设置"
         MeloXSymbol.Bug -> "诊断"
         MeloXSymbol.Play -> "播放"

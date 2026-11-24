@@ -3077,7 +3077,7 @@ private fun RootGlyphIcon(
             RootGlyph.Library -> MeloXSymbol.Library
             RootGlyph.Podcasts -> MeloXSymbol.RadioWaves
             RootGlyph.Downloads -> MeloXSymbol.Download
-            RootGlyph.Cloud -> MeloXSymbol.Storage
+            RootGlyph.Cloud -> MeloXSymbol.Cloud
             RootGlyph.Settings -> MeloXSymbol.Settings
             RootGlyph.Search -> MeloXSymbol.Search
         },
