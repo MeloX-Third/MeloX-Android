@@ -231,7 +231,8 @@ internal fun MeloXNowPlayingCoreControls(
         Spacer(Modifier.height(transportGap))
         SceneTransportControls(state, compact = compact)
         // ★ 车机档跳过音量条：高度预算全让给封面（见 [MeloXCarHeadUnitControlsHeight]）。
-        if (!carHeadUnit) {
+        // 2026-11-24: 添加用户设置开关检查（Issue #132）
+        if (!carHeadUnit && MeloXSettingsRuntime.showVolumeSlider) {
             Spacer(Modifier.height(volumeGap))
             SceneVolumeControl(
                 state,
