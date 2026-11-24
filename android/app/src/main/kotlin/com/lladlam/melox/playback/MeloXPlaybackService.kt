@@ -4,12 +4,15 @@ import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import android.content.pm.ServiceInfo
@@ -20,6 +23,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -47,6 +51,7 @@ import com.lladlam.melox.MainActivity
 import com.lladlam.melox.MeloXAppVisibility
 import com.lladlam.melox.core.account.NeteaseSessionStore
 import com.lladlam.melox.lan.MeloXCastAudioProcessor
+import com.lladlam.melox.lan.MeloXCastAudioTap
 import com.lladlam.melox.lan.MeloXLanCastFormat
 import com.lladlam.melox.lan.MeloXLanCastHandshake
 import com.lladlam.melox.lan.MeloXLanCastReceiver
@@ -155,13 +160,48 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     private var lanCastReceiver: MeloXLanCastReceiver? = null
     private var lanTogetherSharesDevice = false
     private var lanTogetherLastSeekAtMs = 0L
+    @Volatile private var screenInteractive = true
+    private var audioOffloadAllowed: Boolean? = null
+    private var screenStateReceiverRegistered = false
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    screenInteractive = false
+                    superLyricPublisher?.pauseForScreenOff()
+                }
+                Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
+                    val wasOff = !screenInteractive
+                    screenInteractive = true
+                    if (wasOff) {
+                        handler.removeCallbacks(modeMonitor)
+                        handler.post(modeMonitor)
+                        superLyricPublisher?.syncPlayback()
+                    }
+                }
+            }
+        }
+    }
     private val lanStateRunnable = object : Runnable {
         override fun run() {
-            player?.let {
-                lanPlayback = buildLanPlayback(it)
+            val lanActive = MeloXLanRuntime.isCasting() ||
+                MeloXLanRuntime.isHostingTogether() ||
+                MeloXLanRuntime.isGuestTogether() ||
+                com.lladlam.melox.dlna.DlnaSession.active
+            if (lanActive || screenInteractive) {
+                player?.let {
+                    lanPlayback = buildLanPlayback(it)
+                }
+                if (lanActive) {
+                    MeloXLanRuntime.onPlaybackUpdated()
+                }
             }
-            MeloXLanRuntime.onPlaybackUpdated()
-            handler.postDelayed(this, 100L)
+            val nextDelayMs = when {
+                lanActive -> 100L
+                screenInteractive -> 500L
+                else -> IDLE_MONITOR_INTERVAL_MS
+            }
+            handler.postDelayed(this, nextDelayMs)
         }
     }
 
@@ -554,7 +594,8 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                     active.currentMediaItem?.mediaId?.let(::scheduleSmartQueueNext)
                     maybePrepareAutoplay(active)
                     maybeRunAutoMix(active)
-                    if (!uiTransitionActive) {
+                    syncAudioOffloadPolicy(active)
+                    if (!uiTransitionActive && screenInteractive) {
                         maybeUpdateSystemLyrics(active)
                         updateAudioReactiveVisuals(active)
                     }
@@ -567,7 +608,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                     }
                     if (now - lastMaintenanceRealtimeMs >= PLAYBACK_MAINTENANCE_INTERVAL_MS) {
                         lastMaintenanceRealtimeMs = now
-                        if (!uiTransitionActive) {
+                        if (!uiTransitionActive && screenInteractive) {
                             applyLocalArtworkMetadata(active)
                         }
                         PlaybackCommands.prioritizeManualQueue(active)
@@ -581,6 +622,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             }
             val nextTickMs = when {
                 mixStartedAt > 0L -> ACTIVE_MONITOR_INTERVAL_MS
+                !screenInteractive -> IDLE_MONITOR_INTERVAL_MS
                 active?.isPlaying == true -> ACTIVE_MONITOR_INTERVAL_MS
                 active?.currentMediaItem != null -> PAUSED_MONITOR_INTERVAL_MS
                 else -> IDLE_MONITOR_INTERVAL_MS
@@ -700,6 +742,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         val lanAware = MeloXLanRelayDataSource.Factory(resolving)
         val cached = CacheDataSource.Factory()
             .setCache(MeloXMediaCache.get(this))
+            .setCacheKeyFactory(MeloXMediaCache::playbackKey)
             .setUpstreamDataSourceFactory(lanAware)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         val playbackCache = MeloXMediaCache.get(this)
@@ -771,6 +814,26 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         runCatching { superLyricPublisher = SuperLyricPublisher(active, serviceScope) }
             .onFailure { Log.w(TAG, "SuperLyricApi publisher unavailable", it) }
         MeloXLanRuntime.attach(this, this)
+        screenInteractive = getSystemService(PowerManager::class.java)?.isInteractive ?: true
+        val screenFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(screenStateReceiver, screenFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(screenStateReceiver, screenFilter)
+            }
+            screenStateReceiverRegistered = true
+        }.onFailure { Log.w(TAG, "Unable to register screen state receiver", it) }
+        MeloXCastAudioTap.setStateChangeListener {
+            handler.post {
+                player?.let(::syncAudioOffloadPolicy)
+            }
+        }
         lanPlayback = buildLanPlayback(active)
         handler.post(lanStateRunnable)
         handler.post { restorePersistedQueue(active) }
@@ -1224,8 +1287,51 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             .apply {
                 setAudioAttributes(audioAttributes, managesAudioFocus)
                 setHandleAudioBecomingNoisy(managesAudioFocus)
-                if (observesSession) addListener(playerListener)
+                if (observesSession) {
+                    addListener(playerListener)
+                    addAudioOffloadListener(
+                        object : ExoPlayer.AudioOffloadListener {
+                            override fun onSleepingForOffloadChanged(isSleepingForOffload: Boolean) {
+                                Log.i(TAG, "Audio offload sleeping=$isSleepingForOffload")
+                            }
+                        },
+                    )
+                    applyAudioOffloadPolicy(
+                        target = this,
+                        allowOffload = shouldAllowAudioOffload(),
+                    )
+                }
             }
+    }
+
+    /** 仅在未启用局域网投屏、未启用 USB 独占且未进行 AutoMix 淡入淡出时允许硬件音频直通。 */
+    private fun shouldAllowAudioOffload(): Boolean =
+        !MeloXCastAudioTap.needsPcmPipeline() && mixStartedAt == 0L
+
+    private fun syncAudioOffloadPolicy(target: ExoPlayer) {
+        val allow = shouldAllowAudioOffload()
+        if (audioOffloadAllowed == allow) return
+        applyAudioOffloadPolicy(target, allow)
+    }
+
+    private fun applyAudioOffloadPolicy(target: ExoPlayer, allowOffload: Boolean) {
+        audioOffloadAllowed = allowOffload
+        val offloadPrefs = TrackSelectionParameters.AudioOffloadPreferences.Builder()
+            .setAudioOffloadMode(
+                if (allowOffload) {
+                    TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
+                } else {
+                    TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED
+                },
+            )
+            .setIsGaplessSupportRequired(false)
+            .setIsSpeedChangeSupportRequired(false)
+            .build()
+        target.trackSelectionParameters = target.trackSelectionParameters
+            .buildUpon()
+            .setAudioOffloadPreferences(offloadPrefs)
+            .build()
+        Log.i(TAG, "Audio offload policy updated: enabled=$allowOffload")
     }
 
     private fun buildLanPlayback(active: Player): MeloXLanPlayback {
@@ -2364,6 +2470,8 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         mixOutgoingStartPositionMs = 0L
         mixIncomingStartPositionMs = 0L
         mixLastProgress = 0.0
+        audioOffloadAllowed = null
+        syncAudioOffloadPolicy(incoming)
         MeloXAutoMixTransitionRuntime.handoff()
         runCatching { old.removeListener(playerListener) }
         runCatching { old.pause() }
@@ -2567,6 +2675,11 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     }
 
     override fun onDestroy() {
+        MeloXCastAudioTap.setStateChangeListener(null)
+        if (screenStateReceiverRegistered) {
+            runCatching { unregisterReceiver(screenStateReceiver) }
+            screenStateReceiverRegistered = false
+        }
         com.lladlam.melox.usb.MeloXUsbAudioSession.release()
         // Remote sinks outlive a cancelled service scope; release them before
         // the local player disappears so their polling cannot target a dead session.

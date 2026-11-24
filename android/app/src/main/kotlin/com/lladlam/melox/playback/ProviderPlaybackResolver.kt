@@ -134,6 +134,10 @@ class ProviderPlaybackResolver(
         if (uri.host == LegacySongHost) return neteaseResolver.resolveReportedUri(uri)
         if (uri.host != ProviderTrackHost) return uri
         val source = parseSource(uri) ?: return uri
+        val resourceValue = uri.pathSegments.getOrNull(1)?.let(Uri::decode)?.takeIf(String::isNotBlank)
+        if (resourceValue != null) {
+            localSourceProvider(MusicResourceId(source, resourceValue))?.let { return it }
+        }
         val quality = currentQuality(uri)
         return cached(ResolveKey(uri.toString(), authKeyProvider(source), quality, fallbackIdentity()))?.uri ?: uri
     }
@@ -146,13 +150,18 @@ class ProviderPlaybackResolver(
     private fun resolveProviderRequest(uri: Uri): ResolvedRequest {
         val source = parseSource(uri)
             ?: throw IOException("Invalid MeloX provider source: $uri")
-        if (!providerPlaybackEnabled(source)) {
-            throw IOException("${source.displayName} 播放接口已由远程兼容性配置临时关闭")
-        }
         val resourceValue = uri.pathSegments.getOrNull(1)
             ?.let(Uri::decode)
             ?.takeIf(String::isNotBlank)
             ?: throw IOException("Invalid MeloX provider track ID: $uri")
+        val id = MusicResourceId(source, resourceValue)
+        // 本地绑定/已下载文件拥有最高优先级，绕过在线 URL 缓存，绑定与解绑均即时生效。
+        localSourceProvider(id)?.let { local ->
+            return ResolvedRequest(local, emptyMap())
+        }
+        if (!providerPlaybackEnabled(source)) {
+            throw IOException("${source.displayName} 播放接口已由远程兼容性配置临时关闭")
+        }
         val quality = currentQuality(uri)
         val key = ResolveKey(uri.toString(), authKeyProvider(source), quality, fallbackIdentity())
         cached(key)?.let { return it }
@@ -168,7 +177,6 @@ class ProviderPlaybackResolver(
         }
 
         return try {
-            val id = MusicResourceId(source, resourceValue)
             val track = MusicTrack(
                 id = id,
                 title = uri.getQueryParameter(TrackTitleQuery).orEmpty(),
@@ -178,12 +186,6 @@ class ProviderPlaybackResolver(
                 durationMs = uri.getQueryParameter(TrackDurationQuery)?.toLongOrNull(),
                 providerMetadata = providerMetadata(uri, id),
             )
-            localSourceProvider(id)?.let { local ->
-                val result = ResolvedRequest(local, emptyMap())
-                synchronized(cacheLock) { resolvedUris[key] = result }
-                pending.complete(result)
-                return result
-            }
             Log.d(TAG, "resolve detail source=${source.storageValue} id=${resourceValue.take(8)} title=${track.title.take(40)} " +
                 "artists=${track.artistText.take(60)} durationMs=${track.durationMs} metadata=${track.providerMetadata.javaClass.simpleName}")
             Log.i(TAG, "Resolve start source=${source.storageValue} quality=${quality.name} thirdParty=${thirdPartySourcesEnabled()}")

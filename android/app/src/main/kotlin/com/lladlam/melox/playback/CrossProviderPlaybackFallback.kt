@@ -277,29 +277,56 @@ class CrossProviderPlaybackFallbackResolver(
     ): List<MusicTrack> {
         val titleKeys = bilibiliTitleKeys(source.title)
         if (titleKeys.isEmpty()) return emptyList()
+        val sourceTitleLower = source.title.lowercase()
         val sourceArtists = source.artists
             .map { TrackAggregation.normalizeArtist(it.name) }
             .filter(String::isNotBlank)
-        return candidates.filter { candidate ->
+        return candidates.mapNotNull { candidate ->
+            val candidateTitleLower = candidate.title.lowercase()
+            // 排除 B 站二创/变速/空灵/翻唱/DJ/伴奏等非原声版本（若原曲标题本身带该词则放行）。
+            val hasUnexpectedDerivative = BilibiliDerivativeTokens.any { token ->
+                candidateTitleLower.contains(token) && !sourceTitleLower.contains(token)
+            }
+            if (hasUnexpectedDerivative) return@mapNotNull null
+
             val candidateTitle = TrackAggregation.normalize(candidate.title)
             val titleMatches = titleKeys.any { key ->
                 key.length >= 3 && candidateTitle.contains(key)
             }
-            if (!titleMatches) return@filter false
+            if (!titleMatches) return@mapNotNull null
+
             val candidateArtists = candidate.artists
                 .map { TrackAggregation.normalizeArtist(it.name) }
                 .filter(String::isNotBlank)
-            val artistMatches = sourceArtists.any { sourceArtist ->
+            val artistMatchesUploader = sourceArtists.any { sourceArtist ->
                 candidateArtists.any { candidateArtist ->
                     candidateArtist == sourceArtist ||
                         candidateArtist.contains(sourceArtist) ||
                         sourceArtist.contains(candidateArtist)
                 }
             }
-            val durationMatches = source.durationMs != null && candidate.durationMs != null &&
-                abs(source.durationMs - candidate.durationMs) <= BilibiliDurationToleranceMs
-            artistMatches || durationMatches
-        }
+            val artistMatchesTitle = sourceArtists.any { sourceArtist ->
+                sourceArtist.length >= 2 && candidateTitle.contains(sourceArtist)
+            }
+            val durationDiff = if (source.durationMs != null && candidate.durationMs != null) {
+                abs(source.durationMs - candidate.durationMs)
+            } else {
+                null
+            }
+            val durationMatches = durationDiff != null && durationDiff <= BilibiliDurationToleranceMs
+            // 原曲提供时长时，必须同时满足时长误差约束，杜绝变速/剪辑版混入。
+            val accepted = if (source.durationMs != null) {
+                durationMatches && (artistMatchesUploader || artistMatchesTitle)
+            } else {
+                artistMatchesUploader
+            }
+            if (!accepted) return@mapNotNull null
+            val score = (if (artistMatchesUploader) 40 else 0) +
+                (if (artistMatchesTitle) 25 else 0) +
+                (if (durationDiff != null) (BilibiliDurationToleranceMs - durationDiff).toInt() / 100 else 0)
+            candidate to score
+        }.sortedByDescending { it.second }
+            .map { it.first }
     }
 
     private fun bilibiliTitleKeys(value: String): Set<String> = buildList {
@@ -317,7 +344,17 @@ class CrossProviderPlaybackFallbackResolver(
         .toSet()
 
     companion object {
-        private const val BilibiliDurationToleranceMs = 10_000L
+        private const val BilibiliDurationToleranceMs = 5_000L
+
+        private val BilibiliDerivativeTokens = listOf(
+            "翻唱", "cover", "变速", "加速", "减速", "慢放", "快放",
+            "0.75x", "0.8x", "0.85x", "0.9x", "1.1x", "1.2x", "1.25x", "1.5x",
+            "speed up", "speedup", "sped up", "spedup", "nightcore", "slowed", "reverb",
+            "空灵", "立体声", "环绕", "3d环绕", "8d",
+            "伴奏", "消音", "纯音乐", "instrumental", "karaoke", "ktv",
+            "dj", "remix", "串烧", "剪辑", "鬼畜", "ai翻唱", "ai版", "ai歌手",
+            "live", "现场", "演唱会", "钢琴版", "吉他版", "唢呐", "二胡", "古筝", "八音盒",
+        )
 
         /**
          * Sources that can return a complete, directly playable audio URL.

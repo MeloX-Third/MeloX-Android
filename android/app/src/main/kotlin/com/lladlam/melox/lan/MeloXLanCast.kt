@@ -34,19 +34,36 @@ internal object MeloXCastAudioTap {
     @Volatile var inputChannels: Int = 2
     @Volatile private var listener: ((ByteArray) -> Unit)? = null
     @Volatile private var formatListener: ((MeloXLanCastFormat) -> Unit)? = null
+    @Volatile private var stateChangeListener: (() -> Unit)? = null
     @Volatile var muteLocalOutput: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            stateChangeListener?.invoke()
+        }
     @Volatile var format: MeloXLanCastFormat = MeloXLanCastFormat()
         private set
 
     fun attach(listener: (ByteArray) -> Unit) {
         this.listener = listener
+        stateChangeListener?.invoke()
     }
 
     fun detach(listener: (ByteArray) -> Unit) {
-        if (this.listener === listener) this.listener = null
+        if (this.listener === listener) {
+            this.listener = null
+            stateChangeListener?.invoke()
+        }
     }
 
     fun isActive(): Boolean = listener != null
+
+    /** 当且仅当 LAN 投屏或 USB 独占输出激活时，才需要介入 PCM 处理管线。 */
+    fun needsPcmPipeline(): Boolean = isActive() || muteLocalOutput
+
+    fun setStateChangeListener(listener: (() -> Unit)?) {
+        stateChangeListener = listener
+    }
 
     fun onFormatChanged(format: MeloXLanCastFormat) {
         if (this.format == format) return
@@ -86,6 +103,10 @@ internal class MeloXCastAudioProcessor(private val tapAudio: Boolean = true) : B
                     channels = inputAudioFormat.channelCount.coerceIn(1, 2),
                 ),
             )
+        }
+        // 未启用局域网投屏或 USB 独占输出时完全旁路，避免每帧 PCM 拷贝并释放硬件 Audio Offload 能力。
+        if (!tapAudio || !MeloXCastAudioTap.needsPcmPipeline()) {
+            return AudioProcessor.AudioFormat.NOT_SET
         }
         return inputAudioFormat
     }
