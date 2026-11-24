@@ -742,7 +742,6 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         val lanAware = MeloXLanRelayDataSource.Factory(resolving)
         val cached = CacheDataSource.Factory()
             .setCache(MeloXMediaCache.get(this))
-            .setCacheKeyFactory(MeloXMediaCache::playbackKey)
             .setUpstreamDataSourceFactory(lanAware)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         val playbackCache = MeloXMediaCache.get(this)
