@@ -128,6 +128,12 @@ internal class SuperLyricPublisher(
             ?: lines.getOrNull(index + 1)?.timeMs
             ?: (line.timeMs + 3_000L)
 
+    /** 息屏时暂停定时轮询，保留当前歌词文档，亮屏后由 syncPlayback() 立即恢复。 */
+    fun pauseForScreenOff() {
+        updateJob?.cancel()
+        updateJob = null
+    }
+
     fun stop() {
         updateJob?.cancel()
         updateJob = null
