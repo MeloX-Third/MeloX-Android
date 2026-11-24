@@ -255,8 +255,6 @@ private val SettingsSections = listOf(
         SettingsItem(SettingsRoute.ListenTogether, "创建、加入和管理网易云一起听房间", "◎", "一起听 房间 邀请 同步"),
         SettingsItem(SettingsRoute.KugouLiteVip, "酷狗概念版每日签到与会员领取", "✦", "酷狗 概念版 签到 领取 会员 VIP 畅听"),
         SettingsItem(SettingsRoute.TabLayout, "首页、标签栏与音乐库页面", "▥", "首页 标签栏 排序 推荐 歌单 历史"),
-        SettingsItem(SettingsRoute.SystemPlayback, "通知、锁屏和系统媒体信息", "▣", "控制中心 通知 锁屏 Media3"),
-        SettingsItem(SettingsRoute.FloatingLyrics, "Android 悬浮歌词能力与权限", "▤", "画中画 悬浮窗 其他应用"),
         SettingsItem(SettingsRoute.RearDisplay, "下载实验性小米背屏控制应用", "▣", "小米 背屏 副屏 HyperOS Rear 下载"),
     )),
     SettingsSection("历史", listOf(
@@ -546,7 +544,7 @@ internal fun SettingsDetailScreen(route: SettingsRoute, source: MusicSource, ses
                 when (route) {
                     SettingsRoute.Playback -> PlaybackSettings(context)
                     SettingsRoute.PlayerAppearance -> PlayerAppearanceSettings(context)
-                    SettingsRoute.Lyrics -> LyricsSettings(context)
+                    SettingsRoute.Lyrics -> LyricsSettings(context, source)
                     SettingsRoute.SystemPlayback -> SystemPlaybackSettings(context)
                     SettingsRoute.FloatingLyrics -> FloatingLyricsSettings(context)
                     SettingsRoute.ContentFeatures -> ContentFeatureSettings(context)
@@ -2131,7 +2129,7 @@ private fun PlayerAppearanceSettings(context: android.content.Context) {
 }
 
 @Composable
-private fun LyricsSettings(context: android.content.Context) {
+private fun LyricsSettings(context: android.content.Context, source: MusicSource) {
     var lyricsStyle by remember { mutableStateOf(MeloXSettingsRuntime.lyricsStyle) }
     // Eva/TextPV are kept in the codebase for compatibility, but the visible
     // appearance picker exposes the MeloX and Sonify Apple Music renderers.
@@ -2344,6 +2342,23 @@ private fun LyricsSettings(context: android.content.Context) {
     // Group 11: 瞬移阈值
     Spacer(Modifier.height(10.dp))
     PreferenceFloatSlider(context, stringResource(R.string.settings_snap_threshold), "lyrics_snap_threshold_ms", 260f, 50f..500f, 89) { "${it.toInt()} ms" }
+
+    // Group 12: 系统歌词显示、悬浮窗歌词入口
+    Spacer(Modifier.height(10.dp))
+    MeloXIosGroupedList(surfaceColor = MaterialTheme.colorScheme.surface) {
+        MeloXIosListRow(
+            title = stringResource(R.string.settings_route_system_playback),
+            chevronTint = com.lladlam.melox.ui.glass.MeloXSystemColors.Red,
+            onClick = { MeloXSettingsDetailActivity.launch(context, SettingsRoute.SystemPlayback, source) },
+            showTopSeparator = false,
+        )
+        MeloXIosListRow(
+            title = stringResource(R.string.settings_route_floating),
+            chevronTint = com.lladlam.melox.ui.glass.MeloXSystemColors.Red,
+            onClick = { MeloXSettingsDetailActivity.launch(context, SettingsRoute.FloatingLyrics, source) },
+            showTopSeparator = true,
+        )
+    }
 }
 
 @Composable
