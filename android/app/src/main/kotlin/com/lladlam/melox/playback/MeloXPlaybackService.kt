@@ -147,6 +147,8 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     private var systemLyricsLastDispatchRealtimeMs = 0L
     private var systemLyricsLastPlaying = false
     private val lyricsNotificationArtwork = LyricsNotificationArtwork()
+    /** 防止高频切歌引发 ExoPlayer 状态混乱的防抖时间戳（单位：毫秒） */
+    private var lastSkipRealtimeMs = 0L
 
     private var notificationLeftAction = MeloXNotificationAction.PlayMode
     private var notificationRightAction = MeloXNotificationAction.Favorite
@@ -311,6 +313,10 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                 )
             ) {
                 handler.post { refreshNotificationButtons() }
+            }
+            // Issue #130: 播放顺序变化时持久化到 SharedPreferences
+            if (events.contains(Player.EVENT_REPEAT_MODE_CHANGED)) {
+                MeloXPlaybackModePreferences.setRepeatMode(this@MeloXPlaybackService, player.repeatMode)
             }
         }
 
@@ -850,9 +856,19 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_PREVIOUS -> player?.let { player ->
+                // Issue #137: 防止高频切歌引发 ExoPlayer 状态混乱
+                val nowRealtimeMs = android.os.SystemClock.elapsedRealtime()
+                if (nowRealtimeMs - lastSkipRealtimeMs < 300L) return@let
+                lastSkipRealtimeMs = nowRealtimeMs
                 if (player.hasPreviousMediaItem()) player.seekToPreviousMediaItem() else player.seekTo(0L)
             }
-            ACTION_NEXT -> player?.seekToNextMediaItem()
+            ACTION_NEXT -> player?.let { player ->
+                // Issue #137: 防止高频切歌引发 ExoPlayer 状态混乱
+                val nowRealtimeMs = android.os.SystemClock.elapsedRealtime()
+                if (nowRealtimeMs - lastSkipRealtimeMs < 300L) return@let
+                lastSkipRealtimeMs = nowRealtimeMs
+                player.seekToNextMediaItem()
+            }
             ACTION_TOGGLE_PLAYBACK -> player?.let { player ->
                 if (player.isPlaying) player.pause() else player.play()
             }
@@ -1286,6 +1302,8 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             .apply {
                 setAudioAttributes(audioAttributes, managesAudioFocus)
                 setHandleAudioBecomingNoisy(managesAudioFocus)
+                // Issue #130: 恢复上次的播放顺序
+                repeatMode = MeloXPlaybackModePreferences.repeatMode(this@MeloXPlaybackService)
                 if (observesSession) {
                     addListener(playerListener)
                     addAudioOffloadListener(

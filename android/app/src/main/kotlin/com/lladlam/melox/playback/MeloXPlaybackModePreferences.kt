@@ -27,6 +27,7 @@ object MeloXPlaybackModePreferences {
     private const val KEY_AUTOMIX = "auto_mix"
     private const val KEY_HEART = "heart_mode"
     private const val KEY_SMART_QUEUE = "smart_queue"
+    private const val KEY_REPEAT_MODE = "repeat_mode"
 
     internal fun preferences(context: Context) =
         context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
@@ -110,6 +111,15 @@ object MeloXPlaybackModePreferences {
         MeloXPlaybackModeRuntime.smartQueueEnabled = enabled
         preferences(context)
             .edit().putBoolean(KEY_SMART_QUEUE, enabled).apply()
+    }
+
+    fun repeatMode(context: Context): Int =
+        preferences(context)
+            .getInt(KEY_REPEAT_MODE, androidx.media3.common.Player.REPEAT_MODE_OFF)
+
+    fun setRepeatMode(context: Context, repeatMode: Int) {
+        preferences(context)
+            .edit().putInt(KEY_REPEAT_MODE, repeatMode).apply()
     }
 
     fun setAutoMixString(context: Context, key: String, value: String) {
