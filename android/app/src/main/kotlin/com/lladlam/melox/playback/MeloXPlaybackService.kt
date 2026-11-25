@@ -227,6 +227,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     private var mixLastProgress = 0.0
     private var mixSessionOnIncoming = false
     private var cancellingMix = false
+    private val autoMixStateLock = Any()
     private var playlistAnalysisJob: Job? = null
     private var analysisForegroundStarted = false
     private var backgroundAnalysisJob: Job? = null
@@ -1965,24 +1966,26 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             }
             Log.i(TAG, "AutoMix starting transition: source=$sourceId, duration=$actualDuration, incomingStart=${candidate.incomingStartMs}")
             runCatching {
-                mixSettings = settings
-                mixPlan = candidate.copy(durationMs = actualDuration)
-                mixBaseVolume = active.volume.coerceIn(0f, 1f)
-                mixDurationMs = actualDuration
-                if (candidate.incomingStartMs > 0L) incoming.seekTo(candidate.incomingStartMs)
-                active.setPlaybackSpeed(candidate.outgoingStartRate)
-                incoming.setPlaybackSpeed(candidate.incomingStartRate)
-                incoming.volume = 0f
-                incoming.play()
-                if (supportsStableDeckEqualizers()) {
-                    mixEqualizerEnvelope.attach(active.audioSessionId, incoming.audioSessionId)
-                } else {
-                    mixEqualizerEnvelope.release()
+                synchronized(autoMixStateLock) {
+                    mixSettings = settings
+                    mixPlan = candidate.copy(durationMs = actualDuration)
+                    mixBaseVolume = active.volume.coerceIn(0f, 1f)
+                    mixDurationMs = actualDuration
+                    if (candidate.incomingStartMs > 0L) incoming.seekTo(candidate.incomingStartMs)
+                    active.setPlaybackSpeed(candidate.outgoingStartRate)
+                    incoming.setPlaybackSpeed(candidate.incomingStartRate)
+                    incoming.volume = 0f
+                    incoming.play()
+                    if (supportsStableDeckEqualizers()) {
+                        mixEqualizerEnvelope.attach(active.audioSessionId, incoming.audioSessionId)
+                    } else {
+                        mixEqualizerEnvelope.release()
+                    }
+                    mixStartedAt = SystemClock.elapsedRealtime()
+                    mixOutgoingStartPositionMs = active.currentPosition.coerceAtLeast(0L)
+                    mixIncomingStartPositionMs = incoming.currentPosition.coerceAtLeast(0L)
+                    mixLastProgress = 0.0
                 }
-                mixStartedAt = SystemClock.elapsedRealtime()
-                mixOutgoingStartPositionMs = active.currentPosition.coerceAtLeast(0L)
-                mixIncomingStartPositionMs = incoming.currentPosition.coerceAtLeast(0L)
-                mixLastProgress = 0.0
                 MeloXAutoMixTransitionRuntime.begin(active.currentMediaItem, incoming.currentMediaItem)
                 handler.removeCallbacks(mixEnvelope)
                 handler.post(mixEnvelope)
@@ -2134,6 +2137,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     }
 
     private fun loadSystemLyrics(mediaId: String, item: MediaItem) {
+        systemLyricsJob?.cancel()
         systemLyricsMediaId = mediaId
         systemLyricsOriginalMetadata = item.mediaMetadata
         systemLyricsJob = serviceScope.launch {
@@ -2468,25 +2472,24 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         // Publish both deck references together. After this point cleanup must
         // not throw, otherwise recovery could mistake the promoted deck for the
         // standby player and stop the song that is already audible.
-        player = incoming
-        incomingPlayer = old
-        mixSessionOnIncoming = false
-        // The listener is attached after this deck already owns its session, so
-        // an audio-session callback is not guaranteed during promotion.
-        equalizerController.attach(incoming.audioSessionId)
-        autoMixRetrySourceId = null
-        autoMixRetryAfterRealtimeMs = 0L
-        preparedMixSourceId = null
-        preparedMixTargetId = null
-        mixAnalysisJob?.cancel()
-        mixAnalysisJob = null
-        mixAnalysisSourceId = null
-        analyzedMixPlan = null
-        mixStartedAt = 0L
-        mixDurationMs = 0L
-        mixOutgoingStartPositionMs = 0L
-        mixIncomingStartPositionMs = 0L
-        mixLastProgress = 0.0
+        synchronized(autoMixStateLock) {
+            player = incoming
+            incomingPlayer = old
+            mixSessionOnIncoming = false
+            autoMixRetrySourceId = null
+            autoMixRetryAfterRealtimeMs = 0L
+            preparedMixSourceId = null
+            preparedMixTargetId = null
+            mixAnalysisJob?.cancel()
+            mixAnalysisJob = null
+            mixAnalysisSourceId = null
+            analyzedMixPlan = null
+            mixStartedAt = 0L
+            mixDurationMs = 0L
+            mixOutgoingStartPositionMs = 0L
+            mixIncomingStartPositionMs = 0L
+            mixLastProgress = 0.0
+        }
         audioOffloadAllowed = null
         syncAudioOffloadPolicy(incoming)
         MeloXAutoMixTransitionRuntime.handoff()
@@ -2620,8 +2623,10 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     }
 
     private fun cancelPreparedMix(releaseStandby: Boolean = false) {
-        if (cancellingMix) return
-        cancellingMix = true
+        synchronized(autoMixStateLock) {
+            if (cancellingMix) return
+            cancellingMix = true
+        }
         try {
             handler.removeCallbacks(mixEnvelope)
             mixEqualizerEnvelope.release()
@@ -2635,33 +2640,37 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                 runCatching { mediaSession?.setPlayer(active) }
                     .onFailure { Log.e(TAG, "AutoMix cancellation could not restore outgoing session", it) }
             }
-            mixSessionOnIncoming = false
-            if (mixStartedAt > 0L && active != null) {
-                runCatching { active.volume = mixBaseVolume }
-                runCatching { active.setPlaybackSpeed(1f) }
+            synchronized(autoMixStateLock) {
+                mixSessionOnIncoming = false
+                if (mixStartedAt > 0L && active != null) {
+                    runCatching { active.volume = mixBaseVolume }
+                    runCatching { active.setPlaybackSpeed(1f) }
+                }
+                incomingPlayer?.run {
+                    runCatching { removeListener(playerListener) }
+                    runCatching { pause() }
+                    runCatching { stop() }
+                    runCatching { clearMediaItems() }
+                    runCatching { volume = 0f }
+                    runCatching { setPlaybackSpeed(1f) }
+                    if (releaseStandby) runCatching { release() }
+                }
+                if (releaseStandby) incomingPlayer = null
+                preparedMixSourceId = null
+                preparedMixTargetId = null
+                mixStartedAt = 0L
+                mixDurationMs = 0L
+                mixOutgoingStartPositionMs = 0L
+                mixIncomingStartPositionMs = 0L
+                mixLastProgress = 0.0
+                MeloXAutoMixTransitionRuntime.clear()
+                mixSettings = MeloXAutoMixSettings()
+                mixPlan = MeloXAutoMixPlan(0L, 0L)
             }
-            incomingPlayer?.run {
-                runCatching { removeListener(playerListener) }
-                runCatching { pause() }
-                runCatching { stop() }
-                runCatching { clearMediaItems() }
-                runCatching { volume = 0f }
-                runCatching { setPlaybackSpeed(1f) }
-                if (releaseStandby) runCatching { release() }
-            }
-            if (releaseStandby) incomingPlayer = null
-            preparedMixSourceId = null
-            preparedMixTargetId = null
-            mixStartedAt = 0L
-            mixDurationMs = 0L
-            mixOutgoingStartPositionMs = 0L
-            mixIncomingStartPositionMs = 0L
-            mixLastProgress = 0.0
-            MeloXAutoMixTransitionRuntime.clear()
-            mixSettings = MeloXAutoMixSettings()
-            mixPlan = MeloXAutoMixPlan(0L, 0L)
         } finally {
-            cancellingMix = false
+            synchronized(autoMixStateLock) {
+                cancellingMix = false
+            }
         }
     }
 
