@@ -2,9 +2,9 @@
 
 [English](README.md)
 
-[![Downloads](https://img.shields.io/github/downloads/lladlam/MeloX-Android/total?label=downloads&color=2ea44f)](https://github.com/lladlam/MeloX-Android/releases)
-[![Release](https://img.shields.io/github/v/release/lladlam/MeloX-Android?display_name=release&label=release&color=ff2d55)](https://github.com/lladlam/MeloX-Android/releases/latest)
-[![Last Commit](https://img.shields.io/github/last-commit/lladlam/MeloX-Android/main?label=last%20commit&color=007aff)](https://github.com/lladlam/MeloX-Android/commits/main)
+[![Downloads](https://img.shields.io/github/downloads/MeloX-Third/MeloX-Android/total?label=downloads&color=2ea44f)](https://github.com/MeloX-Third/MeloX-Android/releases)
+[![Release](https://img.shields.io/github/v/release/MeloX-Third/MeloX-Android?display_name=release&label=release&color=ff2d55)](https://github.com/MeloX-Third/MeloX-Android/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/MeloX-Third/MeloX-Android/main?label=last%20commit&color=007aff)](https://github.com/MeloX-Third/MeloX-Android/commits/main)
 [![QQ群](https://img.shields.io/badge/QQ%E7%BE%A4-MeloX--Android-12B7F5?logo=tencentqq&logoColor=white)](https://qm.qq.com/q/wbhFQxj7mo)
 [![Telegram](https://img.shields.io/badge/Telegram-MeloX--Android-26A5E4?logo=telegram&logoColor=white)](https://t.me/+Eiy42NxIVNUwOWU1)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -21,8 +21,8 @@
 
 **Windows** 与 **Linux** 版本已处于最终验证阶段。想使用 Windows 版本的朋友，欢迎 Star 这两个项目：
 
-- [MeloX-Windows](https://github.com/lladlam/MeloX-Windows)
-- [MeloX-Linux](https://github.com/lladlam/MeloX-Linux)
+- [MeloX-Windows](https://github.com/MeloX-Third/MeloX-Windows)
+- [MeloX-Linux](https://github.com/MeloX-Third/MeloX-Linux)
 
 > [!IMPORTANT]
 > **弥乐仍处于开发阶段。** 已完成当前 Android 平台范围内的核心功能迁移，并持续以弥乐主线作为行为基准；第三方接口、OEM 协议和不同系统版本仍可能带来兼容性变化。
@@ -39,7 +39,7 @@
 - 识别与歌词：B站标题拆解、音频文件两段随机识别与 9 秒重试、识别 ID 持久化、录屏授权后的系统音频识别、桌面快捷方式。
 - 修复：预测式返回闪回全屏、标签栏排序错位、默认启动页、私信崩溃；日文翻译按 Gramophone 风格精简。
 
-- 下载与完整更新日志：[GitHub Releases](https://github.com/lladlam/MeloX-Android/releases/tag/0.7.5)
+- 下载与完整更新日志：[GitHub Releases](https://github.com/MeloX-Third/MeloX-Android/releases/tag/0.7.5)
 - 版本历史：[CHANGELOG.md](CHANGELOG.md)
 - 本次版本说明：[docs/releases/0.7.5.md](docs/releases/0.7.5.md)
 
@@ -206,7 +206,7 @@ Liquid Glass 在 Android 上使用 Kyant0 `AndroidLiquidGlass` 的原生 Backdro
 1. 克隆仓库：
 
    ```bash
-   git clone https://github.com/lladlam/MeloX-Android.git
+   git clone https://github.com/MeloX-Third/MeloX-Android.git
    cd MeloX-Android
    ```
 
@@ -333,7 +333,7 @@ Text PV / PV Tool、BeatNet 及其他弥乐功能继续按照上游项目要求�
 
 ### 反馈问题与建议
 
-- 请优先前往 [GitHub Issues](https://github.com/lladlam/MeloX-Android/issues) 提交问题或建议；
+- 请优先前往 [GitHub Issues](https://github.com/MeloX-Third/MeloX-Android/issues) 提交问题或建议；
 - 如因网络问题无法访问，请**填写邮件发送至 `lladlam@outlook.com`**，注明**主题**、**问题详细说明 / 建议说明**，并附上**截图与日志**。
 
 ### 贡献代码

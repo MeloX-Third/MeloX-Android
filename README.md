@@ -2,9 +2,9 @@
 
 [中文](README.zh-Hans.md)
 
-[![Downloads](https://img.shields.io/github/downloads/lladlam/MeloX-Android/total?label=downloads&color=2ea44f)](https://github.com/lladlam/MeloX-Android/releases)
-[![Release](https://img.shields.io/github/v/release/lladlam/MeloX-Android?display_name=release&label=release&color=ff2d55)](https://github.com/lladlam/MeloX-Android/releases/latest)
-[![Last Commit](https://img.shields.io/github/last-commit/lladlam/MeloX-Android/main?label=last%20commit&color=007aff)](https://github.com/lladlam/MeloX-Android/commits/main)
+[![Downloads](https://img.shields.io/github/downloads/MeloX-Third/MeloX-Android/total?label=downloads&color=2ea44f)](https://github.com/MeloX-Third/MeloX-Android/releases)
+[![Release](https://img.shields.io/github/v/release/MeloX-Third/MeloX-Android?display_name=release&label=release&color=ff2d55)](https://github.com/MeloX-Third/MeloX-Android/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/MeloX-Third/MeloX-Android/main?label=last%20commit&color=007aff)](https://github.com/MeloX-Third/MeloX-Android/commits/main)
 [![QQ Group](https://img.shields.io/badge/QQ%20Group-MeloX--Android-12B7F5?logo=tencentqq&logoColor=white)](https://qm.qq.com/q/wbhFQxj7mo)
 [![Telegram](https://img.shields.io/badge/Telegram-MeloX--Android-26A5E4?logo=telegram&logoColor=white)](https://t.me/+Eiy42NxIVNUwOWU1)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -21,8 +21,8 @@
 
 The **Windows** and **Linux** editions are in their final verification stage. If you would like to use the Windows edition, please Star both projects:
 
-- [MeloX-Windows](https://github.com/lladlam/MeloX-Windows)
-- [MeloX-Linux](https://github.com/lladlam/MeloX-Linux)
+- [MeloX-Windows](https://github.com/MeloX-Third/MeloX-Windows)
+- [MeloX-Linux](https://github.com/MeloX-Third/MeloX-Linux)
 
 > [!IMPORTANT]
 > **MeloX Android is still in development.** Core features for the current Android scope have been migrated and continue to follow the MeloX mainline. Third-party APIs, OEM protocols, and OS versions can still change compatibility.
@@ -39,7 +39,7 @@ The **Windows** and **Linux** editions are in their final verification stage. If
 - Recognition and lyrics: Bilibili title cleanup, two random audio-file fingerprint segments with 9-second retry, persisted recognition IDs, optional MediaProjection system-audio recognition, and a launcher shortcut.
 - Fixes: predictive-back fullscreen flash, tab-order alignment, default launch page, Messages crash, and Japanese copy shortened using Gramophone terminology.
 
-- Download and full notes: [GitHub Releases](https://github.com/lladlam/MeloX-Android/releases/tag/0.7.5)
+- Download and full notes: [GitHub Releases](https://github.com/MeloX-Third/MeloX-Android/releases/tag/0.7.5)
 - Version history: [CHANGELOG.md](CHANGELOG.md)
 - This release: [docs/releases/0.7.5.md](docs/releases/0.7.5.md)
 
@@ -205,7 +205,7 @@ Some RuntimeShader and Backdrop effects need a newer Android version. Older vers
 1. Clone:
 
    ```bash
-   git clone https://github.com/lladlam/MeloX-Android.git
+   git clone https://github.com/MeloX-Third/MeloX-Android.git
    cd MeloX-Android
    ```
 
@@ -348,7 +348,7 @@ Welcome to MeloX! Contributions are warmly welcome, whether you hand-craft every
 
 ### Reporting issues or suggestions
 
-- Prefer opening an issue on [GitHub Issues](https://github.com/lladlam/MeloX-Android/issues).
+- Prefer opening an issue on [GitHub Issues](https://github.com/MeloX-Third/MeloX-Android/issues).
 - If GitHub is unreachable from your network, email **`lladlam@outlook.com`** instead. Include a clear **subject**, a **detailed description** of the problem or suggestion, and **screenshots and logs**.
 
 ### Contributing code
