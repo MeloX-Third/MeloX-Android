@@ -1680,7 +1680,7 @@ fun MeloXApp(
                     onOpenProject = {
                         runCatching {
                             hostContext.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/lladlam/MeloX-Android")),
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/MeloX-Third/MeloX-Android")),
                             )
                         }
                     },
@@ -1692,7 +1692,7 @@ fun MeloXApp(
                             hostContext.startActivity(
                                 Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://github.com/lladlam/MeloX-Android/blob/main/README.md#credits"),
+                                    Uri.parse("https://github.com/MeloX-Third/MeloX-Android/blob/main/README.md#credits"),
                                 ),
                             )
                         }

@@ -149,11 +149,11 @@ class MeloXUpdateClient(
         val value = JSONObject(body)
         val version = value.getString("version").trim()
         val pageUrl = value.getString("pageUrl").trim()
-        require(version.isNotBlank() && pageUrl.startsWith("https://github.com/lladlam/MeloX-Android/releases/")) {
+        require(version.isNotBlank() && pageUrl.startsWith("https://github.com/MeloX-Third/MeloX-Android/releases/")) {
             "更新清单格式错误"
         }
         val apkUrl = value.optString("apkUrl").trim().takeIf(String::isNotBlank)
-        require(apkUrl == null || apkUrl.startsWith("https://github.com/lladlam/MeloX-Android/releases/download/")) {
+        require(apkUrl == null || apkUrl.startsWith("https://github.com/MeloX-Third/MeloX-Android/releases/download/")) {
             "更新下载地址不受信任"
         }
         return MeloXRelease(
@@ -262,12 +262,12 @@ class MeloXUpdateClient(
     }
 
     private companion object {
-        const val GitHubReleasesUrl = "https://api.github.com/repos/lladlam/MeloX-Android/releases?per_page=100"
-        const val GitHubBranchUrl = "https://api.github.com/repos/lladlam/MeloX-Android/branches/main"
+        const val GitHubReleasesUrl = "https://api.github.com/repos/MeloX-Third/MeloX-Android/releases?per_page=100"
+        const val GitHubBranchUrl = "https://api.github.com/repos/MeloX-Third/MeloX-Android/branches/main"
         const val DevBuildPageUrl =
-            "https://github.com/lladlam/MeloX-Android/releases/download/dev-latest/MeloX-Android-debug.apk"
-        const val ReleasePagePrefix = "https://github.com/lladlam/MeloX-Android/releases/"
-        const val ReleaseDownloadPrefix = "https://github.com/lladlam/MeloX-Android/releases/download/"
+            "https://github.com/MeloX-Third/MeloX-Android/releases/download/dev-latest/MeloX-Android-debug.apk"
+        const val ReleasePagePrefix = "https://github.com/MeloX-Third/MeloX-Android/releases/"
+        const val ReleaseDownloadPrefix = "https://github.com/MeloX-Third/MeloX-Android/releases/download/"
         val VERSION_PATTERN = Regex(
             pattern = "^(?:android-)?v?(\\d+)\\.(\\d+)\\.(\\d+)(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?$",
             option = RegexOption.IGNORE_CASE,
