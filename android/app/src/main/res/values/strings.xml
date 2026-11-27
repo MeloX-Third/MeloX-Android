@@ -164,6 +164,7 @@
     <string name="player_rename_playlist">Rename</string>
     <string name="player_move_up">Move up</string>
     <string name="player_move_down">Move down</string>
+    <string name="plugin_playlist_reorder">Reorder playlist</string>
     <string name="player_delete_playlist">Delete playlist</string>
     <string name="player_track_count">%1$d songs</string>
     <string name="player_no_writable_playlists">No playlists you can add to.</string>

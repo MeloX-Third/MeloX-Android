@@ -187,6 +187,22 @@ class PluginCatalogProviderTest {
         assertEquals(1, calls)
     }
 
+    @Test fun playlistReorderUsesDistinctMemberIds() = runBlocking {
+        val manifest = PluginManifest(source, "Catalog", "1.0.0", 1, "index.js",
+            setOf(PluginCapability.PlaylistReorder), emptySet())
+        val plugin = PluginMusicProvider(manifest, PluginInvoker { method, args ->
+            assertEquals("movePlaylistMember", method)
+            assertEquals("playlist/1", args.getString(0))
+            assertEquals("member/2", args.getString(1))
+            assertEquals("member/1", args.getString(2))
+            assertTrue(args.getBoolean(3))
+            "null"
+        })
+        val playlist = MusicPlaylistSummary(MusicResourceId(source, "playlist/1"), "Playlist", isEditable = true)
+        plugin.movePlaylistMember(playlist, "member/2", "member/1", true)
+        assertTrue(runCatching { plugin.movePlaylistMember(playlist, "member/1", "member/1", true) }.isFailure)
+    }
+
     @Test fun favoritesRequireBooleanStateAndVoidAcknowledgement() = runBlocking {
         var favorite = false
         val plugin = provider { method -> when (method) {

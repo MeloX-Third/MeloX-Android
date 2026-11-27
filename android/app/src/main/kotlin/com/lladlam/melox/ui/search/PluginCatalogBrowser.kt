@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -61,6 +62,8 @@ private fun PluginCatalogContent(
     var revision by remember { mutableIntStateOf(0) }
     var editablePlaylist by remember(collection, page, revision) { mutableStateOf<MusicPlaylistSummary?>(null) }
     var members by remember(collection, page, revision) { mutableStateOf<List<Pair<String, MusicTrack>>>(emptyList()) }
+    var reorderOpen by remember(collection, page) { mutableStateOf(false) }
+    var reorderError by remember(collection, page) { mutableStateOf<String?>(null) }
     var removeOpen by remember(collection, page) { mutableStateOf(false) }
     var removeError by remember(collection, page) { mutableStateOf<String?>(null) }
     var deleteOpen by remember(collection, page) { mutableStateOf(false) }
@@ -208,6 +211,53 @@ private fun PluginCatalogContent(
                     },
                     confirmButton = {
                         TextButton(enabled = !mutationBusy, onClick = { removeOpen = false }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    },
+                )
+            }
+            if (PluginCapability.PlaylistReorder in provider.manifest.capabilities && members.size > 1) {
+                TextButton(enabled = !mutationBusy, onClick = { reorderError = null; reorderOpen = true }) {
+                    Text(stringResource(R.string.plugin_playlist_reorder))
+                }
+                if (reorderOpen) AlertDialog(
+                    onDismissRequest = { if (!mutationBusy) reorderOpen = false },
+                    title = { Text(stringResource(R.string.plugin_playlist_reorder)) },
+                    text = {
+                        LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                            reorderError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+                            itemsIndexed(members, key = { _, member -> member.first }) { index, (memberId, track) ->
+                                fun move(offset: Int) {
+                                    val anchorId = members.getOrNull(index + offset)?.first ?: return
+                                    if (mutationBusy || registry[provider.sourceId] !== provider) return
+                                    mutationBusy = true
+                                    reorderError = null
+                                    scope.launch {
+                                        try {
+                                            provider.movePlaylistMember(playlist, memberId, anchorId, before = offset < 0)
+                                            reorderOpen = false
+                                            revision++
+                                        } catch (cancelled: CancellationException) { throw cancelled }
+                                        catch (failure: Exception) { reorderError = PluginErrors.describe(failure) }
+                                        finally { mutationBusy = false }
+                                    }
+                                }
+                                Column {
+                                    Text(track.title)
+                                    Row {
+                                        TextButton(enabled = !mutationBusy && index > 0, onClick = { move(-1) }) {
+                                            Text(stringResource(R.string.player_move_up))
+                                        }
+                                        TextButton(enabled = !mutationBusy && index < members.lastIndex, onClick = { move(1) }) {
+                                            Text(stringResource(R.string.player_move_down))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(enabled = !mutationBusy, onClick = { reorderOpen = false }) {
                             Text(stringResource(R.string.action_cancel))
                         }
                     },

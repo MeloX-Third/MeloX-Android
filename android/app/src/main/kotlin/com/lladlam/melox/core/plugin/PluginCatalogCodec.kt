@@ -7,6 +7,10 @@ import org.json.JSONObject
 /** Versioned standard transport only. No upstream/platform field inference. */
 internal class PluginCatalogCodec(private val manifest: PluginManifest) {
     private val source = manifest.sourceId
+    private val editablePlaylistCapabilities = setOf(
+        PluginCapability.PlaylistRename, PluginCapability.PlaylistDelete,
+        PluginCapability.PlaylistRemoveMember, PluginCapability.PlaylistReorder,
+    )
     private fun artwork(value: JSONObject) = PluginArtwork.wrap(manifest, optionalText(value, "artworkUrl"))
     fun id(value: JSONObject): MusicResourceId {
         val text = text(value, "id", 4096)
@@ -17,7 +21,7 @@ internal class PluginCatalogCodec(private val manifest: PluginManifest) {
         creatorName = optionalText(value, "creatorName"), description = optionalText(value, "description"),
         trackCount = optionalLong(value, "trackCount")?.also { require(it <= Int.MAX_VALUE) }?.toInt(),
         playCount = optionalLong(value, "playCount"), isEditable = value.opt("isEditable") == true &&
-            manifest.capabilities.any { it == PluginCapability.PlaylistRename || it in setOf(PluginCapability.PlaylistDelete, PluginCapability.PlaylistRemoveMember) })
+            manifest.capabilities.any { it in editablePlaylistCapabilities })
     fun album(value: JSONObject) = MusicAlbumSummary(id(value), text(value, "title"), artworkUrl = artwork(value),
         artists = value.optJSONArray("artists")?.let { list ->
             require(list.length() <= 32)

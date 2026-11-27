@@ -17,6 +17,7 @@
 | playlistRename | renamePlaylist(playlistId, name) | 插件歌单详情 → 改名。详情返回 `isEditable: true` 才显示 |
 | playlistDelete | deletePlaylist(playlistId) | 插件歌单详情 → 删除。详情须标记可编辑，用户须确认 |
 | playlistRemoveMember | removePlaylistMember(playlistId, memberId) | 插件歌单详情 → 按成员移除歌曲 |
+| playlistReorder | movePlaylistMember(playlistId, memberId, anchorId, before) | 插件歌单详情中将歌曲移到同一页的另一成员前方或后方 |
 | albums | searchAlbums(query, page, pageSize), albumDetail(id, page, pageSize) | 动态音源 → 专辑 → 歌曲 |
 | artists | searchArtists(query, page, pageSize), artistDetail(id, page, pageSize) | 动态音源 → 歌手 → 歌曲 |
 | rankings | rankings(page, pageSize), rankingTracks(id, page, pageSize) | 动态音源 → 榜单 → 歌曲 |

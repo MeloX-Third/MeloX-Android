@@ -31,6 +31,7 @@ enum class MusicCapability {
     PlaylistRename,
     PlaylistDelete,
     PlaylistRemoveMember,
+    PlaylistReorder,
     Albums,
     Artists,
     Favorites,
@@ -181,6 +182,10 @@ interface PlaylistRenameCapability {
 
 interface PlaylistRemoveMemberCapability {
     suspend fun removePlaylistMember(playlist: MusicPlaylistSummary, memberId: String)
+}
+
+interface PlaylistReorderCapability {
+    suspend fun movePlaylistMember(playlist: MusicPlaylistSummary, memberId: String, anchorId: String, before: Boolean)
 }
 
 interface PlaylistDeleteCapability {

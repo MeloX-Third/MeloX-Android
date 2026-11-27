@@ -88,6 +88,7 @@ export interface MusicPlugin {
   /** List only playlists the selected account can append tracks to. */
   writablePlaylists?(page: number, pageSize: number, context: HostContext): Promise<MusicPage<PlaylistSummary>>;
   createPlaylist?(name: string, context: HostContext): Promise<PlaylistSummary>;
+  movePlaylistMember?(playlistId: string, memberId: string, anchorId: string, before: boolean, context: HostContext): Promise<void>;
   removePlaylistMember?(playlistId: string, memberId: string, context: HostContext): Promise<void>;
   deletePlaylist?(playlistId: string, context: HostContext): Promise<void>;
   renamePlaylist?(playlistId: string, name: string, context: HostContext): Promise<void>;
