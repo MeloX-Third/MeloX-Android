@@ -52,39 +52,7 @@ object MeloXMusicProviders {
     fun createPlayback(
         context: Context,
         httpClient: OkHttpClient = MeloXHttpClient.shared,
-    ): MusicProviderRegistry {
-        val appContext = context.applicationContext
-        val nativeProviders = listOf<MusicProvider>(
-                NeteaseProvider({ PlaybackAccountStore.neteaseCookie(appContext) }, httpClient),
-                QQMusicProvider({ PlaybackAccountStore.qqSession(appContext) }, httpClient),
-                KugouProvider({ PlaybackAccountStore.kugouSession(appContext) }, httpClient),
-                liteProvider(appContext, httpClient),
-                QishuiProvider({ QishuiSessionStore.read(appContext) }, httpClient),
-                KuwoProviderRegistration.create(appContext, httpClient, forPlayback = true),
-                AppleMusicApiClient({ AppleMusicSessionStore.read(appContext) }, httpClient),
-                BilibiliProvider(
-                    { BilibiliSessionStore.read(appContext) }, httpClient,
-                    { bvid, cid -> BilibiliPlaybackAssociationStore.read(appContext, bvid, cid) },
-                    BilibiliApiCache.shared(appContext),
-                    { BilibiliSessionStore.revision(appContext) },
-                    { BilibiliDirectedTrafficPolicy.isActive(appContext) },
-                ),
-                JellyfinProvider({ JellyfinSessionStore.read(appContext) }, httpClient),
-                LocalProvider(appContext),
-                YouTubeMusicProvider(appContext, httpClient),
-        )
-        return MusicProviderRegistry(
-                nativeProviders + SpotifyProvider(
-                appContext,
-                SpotifyClientConfig.effective(appContext),
-                httpClient,
-                playbackProviders = { nativeProviders },
-            ),
-            dynamic = dynamicProviders,
-            playbackCacheScopes = playbackCacheScopes(appContext),
-            awaitDynamicReady = { com.lladlam.melox.core.plugin.MeloXPlugins.awaitRestored() },
-        )
-    }
+    ): MusicProviderRegistry = buildRegistry(context.applicationContext, httpClient, forPlayback = true)
 
     private fun playbackCacheScopes(context: Context): Map<SourceId, () -> String> {
         return mapOf(
@@ -136,35 +104,41 @@ object MeloXMusicProviders {
             },
         )
 
-    private fun buildRegistry(context: Context, httpClient: OkHttpClient): MusicProviderRegistry {
-        val nativeProviders = listOf<MusicProvider>(
-                NeteaseProvider(
-                    cookieProvider = { NeteaseSessionStore.readCookie(context) },
-                    httpClient = httpClient,
-                ),
-                QQMusicProvider(
-                    sessionProvider = { QQMusicSessionStore.read(context) },
-                    httpClient = httpClient,
-                ),
-                liteProvider(context, httpClient),
-                QishuiProvider({ QishuiSessionStore.read(context) }, httpClient),
-                KuwoProviderRegistration.create(context, httpClient),
-                AppleMusicApiClient(
-                    sessionProvider = { AppleMusicSessionStore.read(context) },
-                    httpClient = httpClient,
-                ),
-                BilibiliProvider(
-                    sessionProvider = { BilibiliSessionStore.read(context) },
-                    httpClient = httpClient,
-                    associationProvider = { bvid, cid -> BilibiliPlaybackAssociationStore.read(context, bvid, cid) },
-                    apiCache = BilibiliApiCache.shared(context),
-                    sessionRevisionProvider = { BilibiliSessionStore.revision(context) },
-                    directedTrafficProvider = { BilibiliDirectedTrafficPolicy.isActive(context) },
-                ),
-                JellyfinProvider({ JellyfinSessionStore.read(context) }, httpClient),
-                LocalProvider(context),
-                YouTubeMusicProvider(context, httpClient),
-        )
+    private fun buildRegistry(
+        context: Context,
+        httpClient: OkHttpClient,
+        forPlayback: Boolean = false,
+    ): MusicProviderRegistry {
+        val nativeProviders = buildList<MusicProvider> {
+            add(NeteaseProvider(
+                cookieProvider = {
+                    if (forPlayback) PlaybackAccountStore.neteaseCookie(context) else NeteaseSessionStore.readCookie(context)
+                },
+                httpClient = httpClient,
+            ))
+            add(QQMusicProvider(
+                sessionProvider = {
+                    if (forPlayback) PlaybackAccountStore.qqSession(context) else QQMusicSessionStore.read(context)
+                },
+                httpClient = httpClient,
+            ))
+            if (forPlayback) add(KugouProvider({ PlaybackAccountStore.kugouSession(context) }, httpClient))
+            add(liteProvider(context, httpClient))
+            add(QishuiProvider({ QishuiSessionStore.read(context) }, httpClient))
+            add(KuwoProviderRegistration.create(context, httpClient, forPlayback))
+            add(AppleMusicApiClient({ AppleMusicSessionStore.read(context) }, httpClient))
+            add(BilibiliProvider(
+                sessionProvider = { BilibiliSessionStore.read(context) },
+                httpClient = httpClient,
+                associationProvider = { bvid, cid -> BilibiliPlaybackAssociationStore.read(context, bvid, cid) },
+                apiCache = BilibiliApiCache.shared(context),
+                sessionRevisionProvider = { BilibiliSessionStore.revision(context) },
+                directedTrafficProvider = { BilibiliDirectedTrafficPolicy.isActive(context) },
+            ))
+            add(JellyfinProvider({ JellyfinSessionStore.read(context) }, httpClient))
+            add(LocalProvider(context))
+            add(YouTubeMusicProvider(context, httpClient))
+        }
         return MusicProviderRegistry(
             nativeProviders + SpotifyProvider(
                 context,
@@ -174,6 +148,7 @@ object MeloXMusicProviders {
             ),
             dynamic = dynamicProviders,
             awaitDynamicReady = { com.lladlam.melox.core.plugin.MeloXPlugins.awaitRestored() },
+            playbackCacheScopes = if (forPlayback) playbackCacheScopes(context) else emptyMap(),
         )
     }
 }
