@@ -27,6 +27,7 @@ enum class MusicCapability {
     Library,
     Playlists,
     PlaylistWrite,
+    PlaylistCreate,
     Albums,
     Artists,
     Favorites,
@@ -165,9 +166,13 @@ interface PlaylistWriteCapability {
     )
 }
 
-/** Optional full playlist mutation surface for providers with native sync APIs. */
-interface PlaylistSyncCapability {
+/** Optional creation of a playlist in the current account. */
+interface PlaylistCreateCapability {
     suspend fun createPlaylist(name: String): MusicPlaylistSummary
+}
+
+/** Optional full playlist mutation surface for providers with native sync APIs. */
+interface PlaylistSyncCapability : PlaylistCreateCapability {
     suspend fun renamePlaylist(playlist: MusicPlaylistSummary, name: String)
     suspend fun removeTrackFromPlaylist(track: MusicTrack, playlist: MusicPlaylistSummary)
     suspend fun reorderPlaylistTrack(playlist: MusicPlaylistSummary, track: MusicTrack, newIndex: Int)

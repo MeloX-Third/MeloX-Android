@@ -30,6 +30,7 @@ internal object PluginWireContract {
                 array(value, "newSongs", 0, 100, ::track)
                 array(value, "rankings", 0, 100, ::ranking)
             }
+            "createPlaylist" -> playlist(value)
             "accountSummary" -> account(value)
             "authenticationStatus" -> when (text(value, "type", 32)) {
                 "notRequired", "signedOut" -> Unit

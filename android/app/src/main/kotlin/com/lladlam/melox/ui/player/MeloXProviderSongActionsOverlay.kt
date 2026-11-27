@@ -67,7 +67,7 @@ import com.lladlam.melox.core.music.provider.FavoriteCapability
 import com.lladlam.melox.core.music.provider.DownloadCapability
 import com.lladlam.melox.core.music.provider.MeloXMusicProviders
 import com.lladlam.melox.core.music.provider.MeloXUnifiedFavorites
-import com.lladlam.melox.core.music.provider.PlaylistSyncCapability
+import com.lladlam.melox.core.music.provider.PlaylistCreateCapability
 import com.lladlam.melox.core.music.provider.PlaylistWriteCapability
 import com.lladlam.melox.core.music.provider.ProviderAccountManager
 import com.lladlam.melox.core.music.provider.loadAllMusicPages
@@ -129,7 +129,9 @@ internal fun MeloXProviderSongActionsOverlay(
     val playlistWriteCapability = (provider as? PlaylistWriteCapability)?.takeIf {
         identity.sourceId.builtIn != null || provider.supports(com.lladlam.melox.core.music.provider.MusicCapability.PlaylistWrite)
     }
-    val playlistSyncCapability = provider as? PlaylistSyncCapability
+    val playlistCreateCapability = (provider as? PlaylistCreateCapability)?.takeIf {
+        identity.sourceId.builtIn != null || provider.supports(com.lladlam.melox.core.music.provider.MusicCapability.PlaylistCreate)
+    }
     val accountManager = remember { ProviderAccountManager(context) }
     val providerLoggedIn = remember(identity.sourceId, visible, generation) {
         identity.sourceId.builtIn?.let { accountManager.state(it).loggedIn } ?: (provider != null)
@@ -447,7 +449,7 @@ internal fun MeloXProviderSongActionsOverlay(
                             }
 
                             ProviderSongActionPage.Playlists -> {
-                                if (playlistSyncCapability != null && providerLoggedIn) {
+                                if (playlistCreateCapability != null && playlistWriteCapability != null && providerLoggedIn) {
                                     ProviderActionItem(
                                         title = stringResource(R.string.player_new_playlist),
                                         symbol = "＋",
@@ -546,7 +548,8 @@ internal fun MeloXProviderSongActionsOverlay(
                                         enabled = !playlistWriteWorking,
                                         onClick = {
                                             if (playlistWriteWorking) return@TextButton
-                                            val sync = playlistSyncCapability ?: return@TextButton
+                                            val create = playlistCreateCapability ?: return@TextButton
+                                            if (registry[identity.sourceId] !== provider) return@TextButton
                                             val write = playlistWriteCapability ?: return@TextButton
                                             val name = newPlaylistName.trim().ifBlank {
                                                 context.getString(R.string.player_new_playlist)
@@ -557,7 +560,8 @@ internal fun MeloXProviderSongActionsOverlay(
                                             scope.launch {
                                                 runCatching {
                                                     withContext(Dispatchers.IO) {
-                                                        val created = sync.createPlaylist(name)
+                                                        val created = create.createPlaylist(name)
+                                                        check(registry[identity.sourceId] === provider) { "音源状态已变化" }
                                                         write.addTrackToPlaylist(actionTrack, created)
                                                         created
                                                     }

@@ -86,6 +86,7 @@ export interface MusicPlugin {
   playlists?(page: number, pageSize: number, context: HostContext): Promise<MusicPage<PlaylistSummary>>;
   /** List only playlists the selected account can append tracks to. */
   writablePlaylists?(page: number, pageSize: number, context: HostContext): Promise<MusicPage<PlaylistSummary>>;
+  createPlaylist?(name: string, context: HostContext): Promise<PlaylistSummary>;
   addTrackToPlaylist?(track: MusicTrack, playlistId: string, context: HostContext): Promise<void>;
   searchPlaylists?(query: string, page: number, pageSize: number, context: HostContext): Promise<MusicPage<PlaylistSummary>>;
   playlistDetail?(id: string, page: number, pageSize: number, context: HostContext): Promise<CollectionDetail<PlaylistSummary>>;

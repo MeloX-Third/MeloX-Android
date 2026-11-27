@@ -13,7 +13,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
     MusicProvider, SearchCapability, PlaybackCapability, LyricsCapability, CatalogSearchCapability,
     PlaylistCapability, AlbumCapability, ArtistCapability, RankingCatalogCapability, HomeFeedCapability,
     UserLibraryCapability, LibraryCollectionCapability, FavoriteStateCapability, AuthenticationCapability, DownloadCapability,
-    FallbackPlaybackCapability, PlaylistWriteCapability {
+    FallbackPlaybackCapability, PlaylistWriteCapability, PlaylistCreateCapability {
     override val sourceId = manifest.sourceId
     override val displayName = manifest.name
     override val capabilities = manifest.capabilities.mapTo(mutableSetOf()) {
@@ -23,6 +23,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
             PluginCapability.Lyrics -> MusicCapability.Lyrics
             PluginCapability.Playlists -> MusicCapability.Playlists
             PluginCapability.PlaylistWrite -> MusicCapability.PlaylistWrite
+            PluginCapability.PlaylistCreate -> MusicCapability.PlaylistCreate
             PluginCapability.Albums -> MusicCapability.Albums
             PluginCapability.Artists -> MusicCapability.Artists
             PluginCapability.Rankings -> MusicCapability.Rankings
@@ -68,6 +69,12 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
     override suspend fun writablePlaylists(page: Int, pageSize: Int): MusicPage<MusicPlaylistSummary> = codec.page(
         catalogPage(PluginCapability.PlaylistWrite, "writablePlaylists", null, page, pageSize), page, pageSize,
     ) { value -> codec.playlist(value).copy(isEditable = true) }
+
+    override suspend fun createPlaylist(name: String): MusicPlaylistSummary {
+        require(name.isNotBlank() && name.codePointCount(0, name.length) <= 4096) { "invalid playlist name" }
+        val result = JSONObject(call(PluginCapability.PlaylistCreate, "createPlaylist", name))
+        return codec.playlist(result).copy(isEditable = true)
+    }
 
     override suspend fun addTrackToPlaylist(track: MusicTrack, playlist: MusicPlaylistSummary) {
         checkTrack(track)

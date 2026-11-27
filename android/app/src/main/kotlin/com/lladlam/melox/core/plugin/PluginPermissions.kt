@@ -14,6 +14,9 @@ object PluginPermissions {
         if (PluginCapability.PlaylistWrite in manifest.capabilities) {
             append("\n歌单写入：可向当前账号的可编辑歌单添加歌曲")
         }
+        if (PluginCapability.PlaylistCreate in manifest.capabilities) {
+            append("\n歌单创建：可在当前账号下创建歌单")
+        }
         if (PluginCapability.Resolver in manifest.capabilities) {
             append("\n解析器：可返回任意 HTTP(S) 渐进式音频 URL（不要求域名白名单）")
         }

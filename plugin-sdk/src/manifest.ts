@@ -1,5 +1,5 @@
 /** Manifest accepted by Android's PluginManifestParser (API version 1). */
-export type PluginCapability = "search" | "playback" | "lyrics" | "playlists" | "playlistWrite" | "albums" | "artists" |
+export type PluginCapability = "search" | "playback" | "lyrics" | "playlists" | "playlistWrite" | "playlistCreate" | "albums" | "artists" |
   "rankings" | "homeFeed" | "userLibrary" | "favorites" | "authentication" | "download" | "resolver";
 
 export interface PluginManifest {

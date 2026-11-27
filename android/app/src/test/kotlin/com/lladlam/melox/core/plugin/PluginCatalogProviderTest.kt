@@ -92,6 +92,23 @@ class PluginCatalogProviderTest {
         assertEquals(listOf("writablePlaylists", "addTrackToPlaylist"), calls)
     }
 
+    @Test fun playlistCreationKeepsSourceIdentityAndRequiresDeclaration() = runBlocking {
+        val name = "My Playlist"
+        val manifest = PluginManifest(source, "Catalog", "1.0.0", 1, "index.js",
+            setOf(PluginCapability.PlaylistCreate), emptySet())
+        val plugin = PluginMusicProvider(manifest, PluginInvoker { method, args ->
+            assertEquals("createPlaylist", method)
+            assertEquals(name, args.getString(0))
+            """{"id":"new/playlist","title":"My Playlist"}"""
+        })
+        val result = plugin.createPlaylist(name)
+        assertEquals(MusicResourceId(source, "new/playlist"), result.id)
+        assertEquals(true, result.isEditable)
+        assertTrue(runCatching { plugin.createPlaylist(" ") }.exceptionOrNull() is IllegalArgumentException)
+        val readOnly = provider(emptySet()) { throw AssertionError("unexpected script call") }
+        assertTrue(runCatching { readOnly.createPlaylist(name) }.exceptionOrNull() is IllegalArgumentException)
+    }
+
     @Test fun favoritesRequireBooleanStateAndVoidAcknowledgement() = runBlocking {
         var favorite = false
         val plugin = provider { method -> when (method) {

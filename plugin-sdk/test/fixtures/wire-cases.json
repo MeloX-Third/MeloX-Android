@@ -18,6 +18,6 @@
     "homeFeed":"homeFeed", "accountSummary":"accountSummary", "authenticationStatus":"authenticationStatus",
     "resolvePlayback":"playbackResolution", "resolveDownload":"playbackResolution", "resolveFallback":"playbackResolution", "lyrics":"lyrics",
     "isFavorite":"favoriteState", "setFavorite":"writeAcknowledgement",
-    "writablePlaylists":"playlistPage", "addTrackToPlaylist":"writeAcknowledgement"
+    "writablePlaylists":"playlistPage", "addTrackToPlaylist":"writeAcknowledgement", "createPlaylist":"playlist"
   }
 }
