@@ -60,8 +60,10 @@ private fun PluginCatalogContent(
     val scope = rememberCoroutineScope()
     var revision by remember { mutableIntStateOf(0) }
     var editablePlaylist by remember(collection, page, revision) { mutableStateOf<MusicPlaylistSummary?>(null) }
+    var deleteOpen by remember(collection, page) { mutableStateOf(false) }
+    var deleteError by remember(collection, page) { mutableStateOf<String?>(null) }
     var renameOpen by remember(collection, page) { mutableStateOf(false) }
-    var renameBusy by remember { mutableStateOf(false) }
+    var mutationBusy by remember { mutableStateOf(false) }
     var renameError by remember(collection, page) { mutableStateOf<String?>(null) }
     val sections = buildList {
         fun addIf(capability: PluginCapability, key: String, label: String) {
@@ -135,16 +137,48 @@ private fun PluginCatalogContent(
         if (collection != null) TextButton(onClick = { collection = null }) { Text("返回列表") }
         val playlist = editablePlaylist
         if (playlist != null && provider != null && !loading && error == null) {
-            TextButton(onClick = { renameError = null; renameOpen = true }) {
+            if (PluginCapability.PlaylistRename in provider.manifest.capabilities) TextButton(onClick = { renameError = null; renameOpen = true }) {
                 Text(stringResource(R.string.player_rename_playlist))
+            }
+            if (PluginCapability.PlaylistDelete in provider.manifest.capabilities) {
+                TextButton(enabled = !mutationBusy, onClick = { deleteError = null; deleteOpen = true }) {
+                    Text(stringResource(R.string.player_delete_playlist))
+                }
+                if (deleteOpen) AlertDialog(
+                    onDismissRequest = { if (!mutationBusy) deleteOpen = false },
+                    title = { Text(stringResource(R.string.player_delete_playlist)) },
+                    text = { Text(deleteError ?: playlist.title) },
+                    confirmButton = {
+                        TextButton(enabled = !mutationBusy, onClick = {
+                            if (!mutationBusy && registry[provider.sourceId] === provider) {
+                                mutationBusy = true
+                                deleteError = null
+                                scope.launch {
+                                    try {
+                                        provider.deletePlaylist(playlist)
+                                        if ((collection as? MusicPlaylistSummary)?.id == playlist.id) collection = null
+                                        revision++
+                                    } catch (cancelled: CancellationException) { throw cancelled }
+                                    catch (failure: Exception) { deleteError = PluginErrors.describe(failure) }
+                                    finally { mutationBusy = false }
+                                }
+                            }
+                        }) { Text(stringResource(R.string.player_delete_playlist)) }
+                    },
+                    dismissButton = {
+                        TextButton(enabled = !mutationBusy, onClick = { deleteOpen = false }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    },
+                )
             }
             if (renameOpen) MeloXProviderPlaylistSyncSheet(
                 title = playlist.title, trackName = null, canRename = true, canDelete = false,
                 canRemove = false, canMoveUp = false, canMoveDown = false,
-                busy = renameBusy, error = renameError,
+                busy = mutationBusy, error = renameError,
                 onRename = { name ->
-                    if (!renameBusy && registry[provider.sourceId] === provider) {
-                        renameBusy = true
+                    if (!mutationBusy && registry[provider.sourceId] === provider) {
+                        mutationBusy = true
                         renameError = null
                         scope.launch {
                             try {
@@ -153,12 +187,12 @@ private fun PluginCatalogContent(
                                 revision++
                             } catch (cancelled: CancellationException) { throw cancelled }
                             catch (failure: Exception) { renameError = PluginErrors.describe(failure) }
-                            finally { renameBusy = false }
+                            finally { mutationBusy = false }
                         }
                     }
                 },
                 onDelete = {}, onRemove = {}, onMoveUp = {}, onMoveDown = {},
-                onDismiss = { if (!renameBusy) renameOpen = false },
+                onDismiss = { if (!mutationBusy) renameOpen = false },
             )
         }
         accountName?.let { Text(it, Modifier.padding(horizontal = 20.dp)) }

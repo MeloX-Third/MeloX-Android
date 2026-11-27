@@ -130,6 +130,29 @@ class PluginCatalogProviderTest {
         assertEquals(false, reader.playlists(1, 30).items.single().isEditable)
     }
 
+    @Test fun playlistDeleteChecksDeclarationAndIdentity() = runBlocking {
+        val item = """{"id":"owned/1","title":"Playlist","isEditable":true}"""
+        val manifest = PluginManifest(source, "Catalog", "1.0.0", 1, "index.js",
+            setOf(PluginCapability.Playlists, PluginCapability.PlaylistDelete), emptySet())
+        var deletes = 0
+        val plugin = PluginMusicProvider(manifest, PluginInvoker { method, args ->
+            when (method) {
+                "playlists" -> page(item)
+                "deletePlaylist" -> {
+                    assertEquals("owned/1", args.getString(0))
+                    deletes++
+                    "null"
+                }
+                else -> error(method)
+            }
+        })
+        val playlist = plugin.playlists(1, 30).items.single()
+        plugin.deletePlaylist(playlist)
+        assertTrue(runCatching { plugin.deletePlaylist(playlist.copy(isEditable = false)) }.isFailure)
+        assertTrue(runCatching { plugin.deletePlaylist(playlist.copy(id = MusicResourceId(MusicSource.Netease, "owned/1"))) }.isFailure)
+        assertEquals(1, deletes)
+    }
+
     @Test fun favoritesRequireBooleanStateAndVoidAcknowledgement() = runBlocking {
         var favorite = false
         val plugin = provider { method -> when (method) {

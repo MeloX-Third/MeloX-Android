@@ -43,6 +43,7 @@ enum class PluginCapability(val wireName: String, val methods: Set<String>) {
     PlaylistWrite("playlistWrite", setOf("writablePlaylists", "addTrackToPlaylist")),
     PlaylistCreate("playlistCreate", setOf("createPlaylist")),
     PlaylistRename("playlistRename", setOf("renamePlaylist")),
+    PlaylistDelete("playlistDelete", setOf("deletePlaylist")),
     Albums("albums", setOf("searchAlbums", "albumDetail")),
     Artists("artists", setOf("searchArtists", "artistDetail")),
     Rankings("rankings", setOf("rankings", "rankingTracks")),
