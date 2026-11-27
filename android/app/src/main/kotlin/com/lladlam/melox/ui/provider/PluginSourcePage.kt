@@ -26,8 +26,8 @@ internal fun PluginSourcePage(source: SourceId, section: String) {
         error?.let { Text(it, Modifier.padding(20.dp), color = MaterialTheme.colorScheme.error) }
         Box(Modifier.weight(1f)) {
             PluginCatalogBrowser(registry, source.value, "", generation, initialSection = section) { tracks ->
-                ProviderSearchSongResults(values = tracks, failures = emptyList(), showSource = true, onPlay = { track ->
-                    ProviderPlaybackCommands.playQueue(context, tracks, track.id, onFailure = { error = "播放失败" })
+                ProviderSearchSongResults(values = tracks, failures = emptyList(), showSource = true, onPlay = { index ->
+                    ProviderPlaybackCommands.playQueueAt(context, tracks, index, onFailure = { error = "播放失败" })
                 })
             }
         }

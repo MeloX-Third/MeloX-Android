@@ -819,11 +819,11 @@ fun SearchScreen(
                     values = visibleProviderSongs,
                     failures = unifiedFailures,
                     showSource = unifiedEnabled,
-                    onPlay = { track ->
-                        ProviderPlaybackCommands.playQueue(
+                    onPlay = { index ->
+                        ProviderPlaybackCommands.playQueueAt(
                             context = context,
                             tracks = visibleProviderSongs,
-                            selectedTrackId = track.id,
+                            selectedIndex = index,
                             onFailure = { failure -> error = failure.message ?: "播放失败" },
                         )
                     },
@@ -977,8 +977,8 @@ private fun PluginSearchResults(
     val context = LocalContext.current
     val state = rememberLazyListState()
     PluginCatalogBrowser(registry, sourceValue, query, generation) { tracks ->
-        ProviderSearchSongResults(state, tracks, emptyList(), true) { track ->
-            ProviderPlaybackCommands.playQueue(context, tracks, track.id)
+        ProviderSearchSongResults(state, tracks, emptyList(), true) { index ->
+            ProviderPlaybackCommands.playQueueAt(context, tracks, index)
         }
     }
 }
@@ -1316,7 +1316,7 @@ internal fun ProviderSearchSongResults(
     values: List<MusicTrack>,
     failures: List<UnifiedMusicService.SearchFailure>,
     showSource: Boolean,
-    onPlay: (MusicTrack) -> Unit,
+    onPlay: (Int) -> Unit,
 ) {
     val context = LocalContext.current
     val providerDownloads = remember(context) { MeloXProviderDownloadStore.get(context) }
@@ -1340,10 +1340,10 @@ internal fun ProviderSearchSongResults(
         if (values.isEmpty()) {
             item { SearchEmptyInline(stringResource(R.string.search_no_songs)) }
         } else {
-            itemsIndexed(values, key = { index, track -> "provider:$index:${track.id.sourceId.value}:${track.id.value}" }) { _, track ->
+            itemsIndexed(values, key = { index, track -> "provider:$index:${track.id.sourceId.value}:${track.id.value}" }) { index, track ->
                 SearchSwipeSongRow(
                     song = MeloXLegacyUiBridge.track(track),
-                    onPlay = { onPlay(track) },
+                    onPlay = { onPlay(index) },
                     onMore = { actionTrack = track },
                     endAction = if (providers[track.id.sourceId]?.let { it is com.lladlam.melox.core.music.provider.DownloadCapability && (it.sourceId.builtIn != null || it.supports(com.lladlam.melox.core.music.provider.MusicCapability.Download)) } == true) MeloXSwipeAction(stringResource(R.string.search_download_local), MeloXSymbol.Download, Color(0xFF0EA5E9)) {
                         providerDownloads.start(track)

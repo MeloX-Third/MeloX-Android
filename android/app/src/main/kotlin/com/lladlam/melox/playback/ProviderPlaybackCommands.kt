@@ -34,17 +34,27 @@ object ProviderPlaybackCommands {
         startPositionMs: Long = C.TIME_UNSET,
         onFailure: ((Throwable) -> Unit)? = null,
     ) {
+        playQueueAt(context, tracks, tracks.indexOfFirst { it.id == selectedTrackId }, startPositionMs, onFailure)
+    }
+
+    internal fun playQueueAt(
+        context: Context,
+        tracks: List<MusicTrack>,
+        selectedIndex: Int,
+        startPositionMs: Long = C.TIME_UNSET,
+        onFailure: ((Throwable) -> Unit)? = null,
+    ) {
         MeloXHomeRecommendationPool.appendTracks(tracks)
         val appContext = context.applicationContext
         if (tracks.isEmpty()) {
             MeloXPlaybackNotice.show(appContext, MeloXPlaybackNotice.EMPTY_QUEUE)
             return
         }
+        val startIndex = selectedIndex.takeIf { it in tracks.indices } ?: 0
         if (tracks.all { it.id.sourceId.builtIn == MusicSource.AppleMusic }) {
             // MusicKit playback bypasses Media3, so Media3-backed lyrics remain
             // unavailable for this hidden source until the backend is unified.
             val session = AppleMusicSessionStore.read(appContext)
-            val startIndex = tracks.indexOfFirst { it.id == selectedTrackId }.coerceAtLeast(0)
             if (AppleMusicSdkBridge.playCatalogQueue(
                     context = appContext,
                     session = session,
@@ -63,7 +73,6 @@ object ProviderPlaybackCommands {
         val neteaseQuality = com.lladlam.melox.core.audio.MeloXNetworkQualityPolicy.effectiveQuality(appContext)
         MusicQualityRuntime.selected = neteaseQuality
         val qualityTier = neteaseQuality.toCommonTier()
-        val startIndex = tracks.indexOfFirst { it.id == selectedTrackId }.coerceAtLeast(0)
         val items = tracks.mapIndexed { index, track ->
             track.toMediaItem(
                 neteaseQuality = neteaseQuality,
