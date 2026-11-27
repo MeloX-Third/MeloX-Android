@@ -169,6 +169,24 @@ class PluginCatalogProviderTest {
         assertTrue(runCatching { plugin.playlistDetail(summary, 1, 30) }.isFailure)
     }
 
+    @Test fun removesOnlyTheSelectedPlaylistMember() = runBlocking {
+        val manifest = PluginManifest(source, "Catalog", "1.0.0", 1, "index.js",
+            setOf(PluginCapability.PlaylistRemoveMember), emptySet())
+        var calls = 0
+        val plugin = PluginMusicProvider(manifest, PluginInvoker { method, args ->
+            assertEquals("removePlaylistMember", method)
+            assertEquals("playlist/1", args.getString(0))
+            assertEquals("member/2", args.getString(1))
+            calls++
+            "null"
+        })
+        val playlist = MusicPlaylistSummary(MusicResourceId(source, "playlist/1"), "Playlist", isEditable = true)
+        plugin.removePlaylistMember(playlist, "member/2")
+        assertTrue(runCatching { plugin.removePlaylistMember(playlist, " ") }.isFailure)
+        assertTrue(runCatching { plugin.removePlaylistMember(playlist.copy(isEditable = false), "member/2") }.isFailure)
+        assertEquals(1, calls)
+    }
+
     @Test fun favoritesRequireBooleanStateAndVoidAcknowledgement() = runBlocking {
         var favorite = false
         val plugin = provider { method -> when (method) {

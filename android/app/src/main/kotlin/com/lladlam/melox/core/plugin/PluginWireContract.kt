@@ -12,7 +12,7 @@ internal object PluginWireContract {
         PluginJson.check(raw)
         when (method) {
             "isFavorite" -> { require(raw.trim() in setOf("true", "false")); return }
-            "setFavorite", "addTrackToPlaylist", "renamePlaylist", "deletePlaylist" -> { require(raw.trim() == "null"); return }
+            "setFavorite", "addTrackToPlaylist", "renamePlaylist", "deletePlaylist", "removePlaylistMember" -> { require(raw.trim() == "null"); return }
             "accountSummary" -> if (raw.trim() == "null") return
         }
         val value = JSONObject(raw)

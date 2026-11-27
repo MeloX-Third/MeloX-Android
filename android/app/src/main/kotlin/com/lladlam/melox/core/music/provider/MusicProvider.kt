@@ -30,6 +30,7 @@ enum class MusicCapability {
     PlaylistCreate,
     PlaylistRename,
     PlaylistDelete,
+    PlaylistRemoveMember,
     Albums,
     Artists,
     Favorites,
@@ -176,6 +177,10 @@ interface PlaylistCreateCapability {
 /** Optional renaming of an editable playlist. */
 interface PlaylistRenameCapability {
     suspend fun renamePlaylist(playlist: MusicPlaylistSummary, name: String)
+}
+
+interface PlaylistRemoveMemberCapability {
+    suspend fun removePlaylistMember(playlist: MusicPlaylistSummary, memberId: String)
 }
 
 interface PlaylistDeleteCapability {

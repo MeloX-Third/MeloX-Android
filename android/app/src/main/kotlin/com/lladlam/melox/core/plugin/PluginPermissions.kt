@@ -23,6 +23,9 @@ object PluginPermissions {
         if (PluginCapability.PlaylistDelete in manifest.capabilities) {
             append("\n歌单删除：可删除当前账号的可编辑歌单")
         }
+        if (PluginCapability.PlaylistRemoveMember in manifest.capabilities) {
+            append("\n歌单成员移除：可移除当前账号可编辑歌单中的歌曲")
+        }
         if (PluginCapability.Resolver in manifest.capabilities) {
             append("\n解析器：可返回任意 HTTP(S) 渐进式音频 URL（不要求域名白名单）")
         }

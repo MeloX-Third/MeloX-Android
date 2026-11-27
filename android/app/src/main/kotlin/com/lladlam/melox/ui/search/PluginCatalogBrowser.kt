@@ -60,6 +60,9 @@ private fun PluginCatalogContent(
     val scope = rememberCoroutineScope()
     var revision by remember { mutableIntStateOf(0) }
     var editablePlaylist by remember(collection, page, revision) { mutableStateOf<MusicPlaylistSummary?>(null) }
+    var members by remember(collection, page, revision) { mutableStateOf<List<Pair<String, MusicTrack>>>(emptyList()) }
+    var removeOpen by remember(collection, page) { mutableStateOf(false) }
+    var removeError by remember(collection, page) { mutableStateOf<String?>(null) }
     var deleteOpen by remember(collection, page) { mutableStateOf(false) }
     var deleteError by remember(collection, page) { mutableStateOf<String?>(null) }
     var renameOpen by remember(collection, page) { mutableStateOf(false) }
@@ -100,6 +103,7 @@ private fun PluginCatalogContent(
             }
             when (val selected = collection) {
                 is MusicPlaylistSummary -> provider.playlistDetail(selected, page, size).let {
+                    members = it.memberIds?.zip(it.tracks).orEmpty()
                     editablePlaylist = it.summary.takeIf { summary -> summary.isEditable == true }
                     tracks = it.tracks; hasMore = it.hasMore ?: (it.total?.let { total -> page.toLong() * size < total } ?: (tracks.size == size))
                 }
@@ -167,6 +171,43 @@ private fun PluginCatalogContent(
                     },
                     dismissButton = {
                         TextButton(enabled = !mutationBusy, onClick = { deleteOpen = false }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    },
+                )
+            }
+            if (PluginCapability.PlaylistRemoveMember in provider.manifest.capabilities && members.isNotEmpty()) {
+                TextButton(enabled = !mutationBusy, onClick = { removeError = null; removeOpen = true }) {
+                    Text(stringResource(R.string.player_remove_from_playlist))
+                }
+                if (removeOpen) AlertDialog(
+                    onDismissRequest = { if (!mutationBusy) removeOpen = false },
+                    title = { Text(stringResource(R.string.player_remove_from_playlist)) },
+                    text = {
+                        LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                            removeError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+                            items(members, key = { it.first }) { (memberId, track) ->
+                                TextButton(enabled = !mutationBusy, onClick = {
+                                    if (!mutationBusy && registry[provider.sourceId] === provider) {
+                                        mutationBusy = true
+                                        removeError = null
+                                        scope.launch {
+                                            try {
+                                                provider.removePlaylistMember(playlist, memberId)
+                                                removeOpen = false
+                                                if (members.size == 1 && page > 1 && !hasMore) page--
+                                                revision++
+                                            } catch (cancelled: CancellationException) { throw cancelled }
+                                            catch (failure: Exception) { removeError = PluginErrors.describe(failure) }
+                                            finally { mutationBusy = false }
+                                        }
+                                    }
+                                }) { Text(track.title) }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(enabled = !mutationBusy, onClick = { removeOpen = false }) {
                             Text(stringResource(R.string.action_cancel))
                         }
                     },

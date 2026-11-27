@@ -40,6 +40,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1339,7 +1340,7 @@ internal fun ProviderSearchSongResults(
         if (values.isEmpty()) {
             item { SearchEmptyInline(stringResource(R.string.search_no_songs)) }
         } else {
-            items(values, key = { "provider:${it.id.sourceId.value}:${it.id.value}" }) { track ->
+            itemsIndexed(values, key = { index, track -> "provider:$index:${track.id.sourceId.value}:${track.id.value}" }) { _, track ->
                 SearchSwipeSongRow(
                     song = MeloXLegacyUiBridge.track(track),
                     onPlay = { onPlay(track) },

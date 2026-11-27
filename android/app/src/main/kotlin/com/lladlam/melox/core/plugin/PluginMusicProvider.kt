@@ -13,7 +13,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
     MusicProvider, SearchCapability, PlaybackCapability, LyricsCapability, CatalogSearchCapability,
     PlaylistCapability, AlbumCapability, ArtistCapability, RankingCatalogCapability, HomeFeedCapability,
     UserLibraryCapability, LibraryCollectionCapability, FavoriteStateCapability, AuthenticationCapability, DownloadCapability,
-    FallbackPlaybackCapability, PlaylistWriteCapability, PlaylistCreateCapability, PlaylistRenameCapability, PlaylistDeleteCapability {
+    FallbackPlaybackCapability, PlaylistWriteCapability, PlaylistCreateCapability, PlaylistRenameCapability, PlaylistDeleteCapability, PlaylistRemoveMemberCapability {
     override val sourceId = manifest.sourceId
     override val displayName = manifest.name
     override val capabilities = manifest.capabilities.mapTo(mutableSetOf()) {
@@ -26,6 +26,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
             PluginCapability.PlaylistCreate -> MusicCapability.PlaylistCreate
             PluginCapability.PlaylistRename -> MusicCapability.PlaylistRename
             PluginCapability.PlaylistDelete -> MusicCapability.PlaylistDelete
+            PluginCapability.PlaylistRemoveMember -> MusicCapability.PlaylistRemoveMember
             PluginCapability.Albums -> MusicCapability.Albums
             PluginCapability.Artists -> MusicCapability.Artists
             PluginCapability.Rankings -> MusicCapability.Rankings
@@ -76,6 +77,13 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
         require(name.isNotBlank() && name.codePointCount(0, name.length) <= 4096) { "invalid playlist name" }
         val result = JSONObject(call(PluginCapability.PlaylistCreate, "createPlaylist", name))
         return codec.playlist(result).copy(isEditable = true)
+    }
+
+    override suspend fun removePlaylistMember(playlist: MusicPlaylistSummary, memberId: String) {
+        require(playlist.id.sourceId == sourceId && playlist.isEditable == true) { "playlist is not editable for this source" }
+        require(playlist.id.value.toByteArray(Charsets.UTF_8).size <= 4096) { "playlist id too large" }
+        require(memberId.isNotBlank() && memberId.toByteArray(Charsets.UTF_8).size <= 4096) { "invalid member id" }
+        call(PluginCapability.PlaylistRemoveMember, "removePlaylistMember", playlist.id.value, memberId)
     }
 
     override suspend fun deletePlaylist(playlist: MusicPlaylistSummary) {
