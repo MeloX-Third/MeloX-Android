@@ -4,7 +4,7 @@ import android.content.Context
 import com.lladlam.melox.core.music.provider.MeloXMusicProviders
 import com.lladlam.melox.core.music.provider.TrackAggregation
 import com.lladlam.melox.core.music.provider.UnifiedMusicService
-import com.lladlam.melox.core.music.model.MusicSource
+import com.lladlam.melox.core.music.provider.MusicProviderSelectionStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,17 +38,14 @@ object LocalRecommendationEngine {
         job = scope.launch {
             val existing = withContext(Dispatchers.IO) { LocalRecommendationStore.readFeatures(context) }
             LocalRecommendationStore.progress.value = LocalAnalysisProgress(LocalAnalysisStage.SyncPreparing, 0, 0, message = "准备本地聚合数据", isFullAnalysis = true)
-            val trainingTracks = runCatching {
-                val registry = MeloXMusicProviders.create(context)
-                UnifiedMusicService(registry).collectAggregationTracks(MusicSource.entries.toSet(), pageSizePerProvider = 100).tracks
-            }.getOrDefault(emptyList())
-            val candidateTracks = runCatching {
-                val registry = MeloXMusicProviders.create(context)
-                val selection = com.lladlam.melox.core.music.provider.MusicProviderSelectionStore
-                val dynamic = if (selection.unifiedEnabled(context)) selection.unifiedSourceIds(context).filter { it.builtIn == null } else emptyList()
-                val sources = MusicSource.entries.mapTo(linkedSetOf(), com.lladlam.melox.core.music.model.SourceId::fromBuiltIn) + dynamic
-                UnifiedMusicService(registry).collectRecommendationCandidatesSourceIds(sources, limitPerProvider = 30)
-            }.getOrDefault(emptyList())
+            val registry = MeloXMusicProviders.create(context)
+            val service = UnifiedMusicService(registry)
+            val selection = MusicProviderSelectionStore
+            val optedIn = if (selection.unifiedEnabled(context)) selection.unifiedSourceIds(context) else emptySet()
+            val sources = (registry.providers + registry.enabledDynamicProviders().filter { it.sourceId in optedIn })
+                .mapTo(linkedSetOf()) { it.sourceId }
+            val trainingTracks = service.collectAggregationTracks(sources, pageSizePerProvider = 100).tracks
+            val candidateTracks = service.collectRecommendationCandidatesSourceIds(sources, limitPerProvider = 30)
             LocalRecommendationStore.progress.value = LocalAnalysisProgress(LocalAnalysisStage.Syncing, trainingTracks.size, trainingTracks.size + candidateTracks.size, message = "已采集 ${trainingTracks.size} 个训练来源和 ${candidateTracks.size} 个候选来源", isFullAnalysis = true)
             val trainingGroups = TrackAggregation.aggregate(trainingTracks)
             val candidateGroups = TrackAggregation.aggregate(candidateTracks)

@@ -95,6 +95,27 @@ class UnifiedMusicServiceTest {
         assertTrue(result.failures.single().message.contains("simulated failure"))
     }
 
+    @Test fun aggregationUsesExplicitIdentitiesAndRejectsForeignResults() = runBlocking {
+        val id = com.lladlam.melox.core.music.model.SourceId.parse("plugin:org.example.aggregate")!!
+        val registry = MusicProviderRegistry(listOf(FakeSearchProvider(MusicSource.Netease, mutableListOf())))
+        val correct = MusicTrack(MusicResourceId(id, "1"), "Test", emptyList())
+        var track = correct
+        val plugin = object : MusicProvider, com.lladlam.melox.core.music.provider.LocalAggregationCapability {
+            override val sourceId = id
+            override val displayName = "Aggregation"
+            override val capabilities = emptySet<MusicCapability>()
+            override suspend fun aggregationTracks(page: Int, pageSize: Int) = MusicPage(listOf(track), page, pageSize)
+        }
+        registry.registerDynamic(plugin)
+        val service = UnifiedMusicService(registry)
+        assertTrue(service.collectAggregationTracks(emptySet()).tracks.isEmpty())
+        assertEquals(listOf(correct), service.collectAggregationTracks(setOf(id)).tracks)
+        track = correct.copy(id = MusicResourceId(MusicSource.Netease, "1"))
+        val rejected = service.collectAggregationTracks(setOf(id))
+        assertTrue(rejected.tracks.isEmpty())
+        assertEquals(id, rejected.failures.single().sourceId)
+    }
+
     private class FakeSearchProvider(
         override val source: MusicSource,
         private val calls: MutableList<MusicSource>,

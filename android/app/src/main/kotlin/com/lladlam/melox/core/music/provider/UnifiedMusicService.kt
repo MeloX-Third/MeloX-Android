@@ -94,17 +94,23 @@ class UnifiedMusicService(
     )
 
     suspend fun collectAggregationTracks(
-        sources: Set<MusicSource>,
+        sources: Set<SourceId>,
         pageSizePerProvider: Int = 100,
     ): AggregationResult = coroutineScope {
-        val results = MusicSource.entries.filter(sources::contains).map { source ->
+        val results = sources.sortedBy { it.value }.map { source ->
             async {
-                val capability = registry[source] as? LocalAggregationCapability
-                if (capability == null) {
-                    ProviderResult(source, emptyList(), null)
-                } else {
-                    runCatching { capability.aggregationTracks(page = 1, pageSize = pageSizePerProvider.coerceIn(1, 200)).items }
-                        .fold({ ProviderResult(source, it, null) }, { ProviderResult(source, emptyList(), SearchFailure(source, it.message ?: "${source.displayName} 聚合数据读取失败")) })
+                val provider = registry[source]
+                val capability = provider as? LocalAggregationCapability
+                    ?: return@async ProviderResult(emptyList())
+                try {
+                    val page = capability.aggregationTracks(page = 1, pageSize = pageSizePerProvider.coerceIn(1, 200))
+                    check(registry[source] === provider) { "音源状态已变化" }
+                    require(page.items.all { it.id.sourceId == source }) { "aggregation source identity mismatch" }
+                    ProviderResult(page.items)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    ProviderResult(emptyList(), SearchFailure(source, error.message ?: "${source.displayName} 聚合数据读取失败"))
                 }
             }
         }.awaitAll()
@@ -142,8 +148,7 @@ class UnifiedMusicService(
     }
 
     private data class ProviderResult(
-        val source: MusicSource,
         val tracks: List<MusicTrack>,
-        val failure: SearchFailure?,
+        val failure: SearchFailure? = null,
     )
 }
