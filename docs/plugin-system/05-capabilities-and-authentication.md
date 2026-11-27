@@ -13,7 +13,7 @@
 | lyrics | lyrics(track) | 现有歌词加载器 |
 | playlists | playlists(page, pageSize), searchPlaylists(query, page, pageSize), playlistDetail(id, page, pageSize) | 动态音源 → 歌单 → 详情/上下页 |
 | playlistWrite | writablePlaylists(page, pageSize), addTrackToPlaylist(track, playlistId) | 歌曲菜单 → 添加到已有歌单 |
-| playlistCreate | createPlaylist(name) | 歌曲菜单 → 新建并添加（同时需要 `playlistWrite`） |
+| playlistCreate | createPlaylist(name) | 我的歌单 → 新建，或歌曲菜单 → 新建并添加（后者需 `playlistWrite`） |
 | playlistRename | renamePlaylist(playlistId, name) | 插件歌单详情 → 改名。详情返回 `isEditable: true` 才显示 |
 | playlistDelete | deletePlaylist(playlistId) | 插件歌单详情 → 删除。详情须标记可编辑，用户须确认 |
 | playlistRemoveMember | removePlaylistMember(playlistId, memberId) | 插件歌单详情 → 按成员移除歌曲 |

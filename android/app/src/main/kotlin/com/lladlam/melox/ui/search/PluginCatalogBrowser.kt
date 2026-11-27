@@ -80,6 +80,10 @@ private fun PluginCatalogContent(
     val home = (provider as? HomeFeedCapability)?.takeIf { provider.supports(MusicCapability.HomeRecommendations) }
     val library = (provider as? UserLibraryCapability)?.takeIf { provider.supports(MusicCapability.Library) }
     val collections = (provider as? LibraryCollectionCapability)?.takeIf { provider.supports(MusicCapability.Library) }
+    var createOpen by remember(section, collection) { mutableStateOf(false) }
+    var createName by remember(section, collection) { mutableStateOf("") }
+    var createError by remember(section, collection) { mutableStateOf<String?>(null) }
+    val create = (provider as? PlaylistCreateCapability)?.takeIf { provider.supports(MusicCapability.PlaylistCreate) }
     val rename = (provider as? PlaylistRenameCapability)?.takeIf { provider.supports(MusicCapability.PlaylistRename) }
     val delete = (provider as? PlaylistDeleteCapability)?.takeIf { provider.supports(MusicCapability.PlaylistDelete) }
     val remove = (provider as? PlaylistRemoveMemberCapability)?.takeIf { provider.supports(MusicCapability.PlaylistRemoveMember) }
@@ -157,6 +161,53 @@ private fun PluginCatalogContent(
             items(sections) { (key, label) -> TextButton(onClick = { section = key }) { Text(if (section == key) "✓ $label" else label) } }
         }
         if (collection != null) TextButton(onClick = { collection = null }) { Text("返回列表") }
+        if (section == "library" && collection == null && provider != null && create != null) {
+            TextButton(enabled = !mutationBusy, onClick = {
+                createName = ""
+                createError = null
+                createOpen = true
+            }) { Text(stringResource(R.string.player_create_playlist)) }
+            if (createOpen) AlertDialog(
+                onDismissRequest = { if (!mutationBusy) createOpen = false },
+                title = { Text(stringResource(R.string.player_new_playlist)) },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = createName,
+                            onValueChange = { createName = it },
+                            enabled = !mutationBusy,
+                            singleLine = true,
+                            label = { Text(stringResource(R.string.player_playlist_name)) },
+                        )
+                        createError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = !mutationBusy && createName.isNotBlank(), onClick = {
+                        if (!mutationBusy && registry[provider.sourceId] === provider) {
+                            val name = createName.trim()
+                            mutationBusy = true
+                            createError = null
+                            scope.launch {
+                                try {
+                                    create.createPlaylist(name)
+                                    createOpen = false
+                                    page = 1
+                                    revision++
+                                } catch (cancelled: CancellationException) { throw cancelled }
+                                catch (failure: Exception) { createError = PluginErrors.describe(failure) }
+                                finally { mutationBusy = false }
+                            }
+                        }
+                    }) { Text(stringResource(R.string.player_create_playlist)) }
+                },
+                dismissButton = {
+                    TextButton(enabled = !mutationBusy, onClick = { createOpen = false }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
+        }
         val playlist = editablePlaylist
         if (playlist != null && provider != null && !loading && error == null) {
             if (rename != null) TextButton(onClick = { renameError = null; renameOpen = true }) {
