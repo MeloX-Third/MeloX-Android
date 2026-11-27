@@ -254,21 +254,25 @@ class MusicProviderRegistry(
     private val dynamic: DynamicMusicProviders = DynamicMusicProviders(),
     private val awaitDynamicReady: () -> Unit = {},
 ) {
-    private val providersBySource = providers.associateBy(MusicProvider::source)
+    private val providersBySource = buildMap {
+        for (provider in providers) {
+            val id = provider.sourceId
+            require(id.builtIn != null) { "static provider needs a built-in source id" }
+            require(put(id, provider) == null) { "duplicate music provider source: ${id.value}" }
+        }
+    }
 
     init {
         require(providersBySource.isNotEmpty()) { "at least one music provider is required" }
-        require(providersBySource.size == providers.count()) { "duplicate music provider source" }
     }
 
     val providers: List<MusicProvider>
         get() = providersBySource.values.toList()
 
-    operator fun get(source: MusicSource): MusicProvider? = providersBySource[source]
+    operator fun get(source: MusicSource): MusicProvider? = get(SourceId.fromBuiltIn(source))
 
     /** Unknown identities are unavailable, never mapped to a default provider. */
-    operator fun get(source: SourceId): MusicProvider? = source.builtIn?.let(providersBySource::get)
-        ?: dynamic[source]
+    operator fun get(source: SourceId): MusicProvider? = providersBySource[source] ?: dynamic[source]
 
     val generation: Long get() = dynamic.generation
     val changes: StateFlow<Long> get() = dynamic.changes
@@ -286,7 +290,10 @@ class MusicProviderRegistry(
     fun enabledDynamicProviders(): List<MusicProvider> = dynamic.enabledProviders()
 
     fun require(source: MusicSource): MusicProvider =
-        providersBySource[source] ?: error("Music provider ${source.storageValue} is not registered")
+        require(SourceId.fromBuiltIn(source))
+
+    fun require(source: SourceId): MusicProvider =
+        get(source) ?: error("Music provider ${source.value} is not registered")
 }
 
 /** Shared by the UI and playback registries; no provider is persisted here. */

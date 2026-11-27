@@ -110,6 +110,22 @@ class MusicProviderArchitectureTest {
     }
 
     @Test
+    fun registryIndexesByStableIdentityWithoutReadingLegacySource() {
+        val id = SourceId.fromBuiltIn(MusicSource.Kuwo)
+        val provider = object : MusicProvider {
+            override val sourceId = id
+            override val displayName = "Kuwo"
+            override val capabilities = emptySet<MusicCapability>()
+        }
+        val registry = MusicProviderRegistry(listOf(provider))
+        assertEquals(provider, registry.require(id))
+        assertEquals(provider, registry.require(MusicSource.Kuwo))
+        assertThrows(IllegalArgumentException::class.java) {
+            MusicProviderRegistry(listOf(provider, provider))
+        }
+    }
+
+    @Test
     fun dynamicRegistryLifecycleDoesNotAlterBuiltInProviders() {
         val builtIn = object : MusicProvider {
             override val source = MusicSource.Netease
