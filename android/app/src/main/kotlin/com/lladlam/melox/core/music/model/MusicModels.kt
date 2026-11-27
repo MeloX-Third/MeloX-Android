@@ -190,6 +190,8 @@ data class MusicPlaylistDetail(
     val total: Long? = null,
     /** Upstream resource pagination may differ from track count (e.g. Bilibili multi-part videos). */
     val hasMore: Boolean? = null,
+    /** Optional source-local member IDs in the same order as tracks. */
+    val memberIds: List<String>? = null,
 )
 
 /** A ranking is intentionally not modelled as a playlist: some services expose different semantics. */

@@ -153,6 +153,22 @@ class PluginCatalogProviderTest {
         assertEquals(1, deletes)
     }
 
+    @Test fun playlistDetailDistinguishesRepeatedTracks() = runBlocking {
+        val summary = MusicPlaylistSummary(MusicResourceId(source, "p"), "Playlist")
+        var members = """["member/1","member/2"]"""
+        val plugin = provider { method ->
+            assertEquals("playlistDetail", method)
+            """{"summary":{"id":"p","title":"Playlist"},"tracks":${page("$track,$track")},"memberIds":$members}"""
+        }
+        val result = plugin.playlistDetail(summary, 1, 30)
+        assertEquals(result.tracks.first().id, result.tracks.last().id)
+        assertEquals(listOf("member/1", "member/2"), result.memberIds)
+        members = """["member/1","member/1"]"""
+        assertTrue(runCatching { plugin.playlistDetail(summary, 1, 30) }.isFailure)
+        members = """["member/1"]"""
+        assertTrue(runCatching { plugin.playlistDetail(summary, 1, 30) }.isFailure)
+    }
+
     @Test fun favoritesRequireBooleanStateAndVoidAcknowledgement() = runBlocking {
         var favorite = false
         val plugin = provider { method -> when (method) {

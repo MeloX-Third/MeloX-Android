@@ -27,6 +27,7 @@ class PluginWireFieldsTest {
         values["authenticationStatus"] = JSONObject().put("type", "signedIn").put("account", models.getJSONObject("account"))
         values["accountSummary"] = models.getJSONObject("account")
         values["favoriteState"] = true; values["writeAcknowledgement"] = JSONObject.NULL
+        (values.getValue("playlistDetail") as JSONObject).put("memberIds", JSONArray().put("member/1"))
         val methods = fixture.getJSONObject("methods")
         assertEquals(PluginCapability.entries.flatMap { it.methods }.toSet(), methods.keys().asSequence().toSet())
         methods.keys().forEach { method ->

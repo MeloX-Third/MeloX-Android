@@ -74,6 +74,7 @@ export interface AlbumSummary { id: string; title: string; artists?: Array<{ id?
 export interface ArtistSummary { id: string; name: string; artworkUrl?: string; description?: string; songCount?: number; albumCount?: number }
 export interface RankingSummary { id: string; title: string; subtitle?: string; artworkUrl?: string }
 export interface CollectionDetail<T> { summary: T; tracks: MusicPage<MusicTrack> }
+export interface PlaylistDetail extends CollectionDetail<PlaylistSummary> { memberIds?: string[] }
 export interface HomeFeed { recommendedPlaylists: PlaylistSummary[]; newSongs: MusicTrack[]; rankings: RankingSummary[] }
 
 export interface MusicPlugin {
@@ -91,7 +92,7 @@ export interface MusicPlugin {
   renamePlaylist?(playlistId: string, name: string, context: HostContext): Promise<void>;
   addTrackToPlaylist?(track: MusicTrack, playlistId: string, context: HostContext): Promise<void>;
   searchPlaylists?(query: string, page: number, pageSize: number, context: HostContext): Promise<MusicPage<PlaylistSummary>>;
-  playlistDetail?(id: string, page: number, pageSize: number, context: HostContext): Promise<CollectionDetail<PlaylistSummary>>;
+  playlistDetail?(id: string, page: number, pageSize: number, context: HostContext): Promise<PlaylistDetail>;
   searchAlbums?(query: string, page: number, pageSize: number, context: HostContext): Promise<MusicPage<AlbumSummary>>;
   albumDetail?(id: string, page: number, pageSize: number, context: HostContext): Promise<CollectionDetail<AlbumSummary>>;
   searchArtists?(query: string, page: number, pageSize: number, context: HostContext): Promise<MusicPage<ArtistSummary>>;

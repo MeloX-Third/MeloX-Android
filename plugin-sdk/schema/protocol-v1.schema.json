@@ -89,7 +89,7 @@
     "albumPage": { "allOf": [{ "$ref": "#/$defs/page" }, { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/$defs/album" } } } }] },
     "artistPage": { "allOf": [{ "$ref": "#/$defs/page" }, { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/$defs/artist" } } } }] },
     "rankingPage": { "allOf": [{ "$ref": "#/$defs/page" }, { "type": "object", "properties": { "items": { "type": "array", "items": { "$ref": "#/$defs/ranking" } } } }] },
-    "playlistDetail": { "type": "object", "required": ["summary", "tracks"], "properties": { "summary": { "$ref": "#/$defs/playlist" }, "tracks": { "$ref": "#/$defs/searchPage" } } },
+    "playlistDetail": { "type": "object", "required": ["summary", "tracks"], "properties": { "summary": { "$ref": "#/$defs/playlist" }, "tracks": { "$ref": "#/$defs/searchPage" }, "memberIds": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/resourceId" } } } },
     "albumDetail": { "type": "object", "required": ["summary", "tracks"], "properties": { "summary": { "$ref": "#/$defs/album" }, "tracks": { "$ref": "#/$defs/searchPage" } } },
     "artistDetail": { "type": "object", "required": ["summary", "tracks"], "properties": { "summary": { "$ref": "#/$defs/artist" }, "tracks": { "$ref": "#/$defs/searchPage" } } },
     "homeFeed": {

@@ -26,6 +26,7 @@ internal object PluginRcWireChecks {
         values.put("accountSummary", models.getJSONObject("account"))
         values.put("authenticationStatus", JSONObject().put("type", "signedIn").put("account", models.getJSONObject("account")))
         values.put("favoriteState", true).put("writeAcknowledgement", JSONObject.NULL)
+        values.getJSONObject("playlistDetail").put("memberIds", JSONArray().put("member/1"))
         val methods = fixture.getJSONObject("methods")
         check(methods.keys().asSequence().toSet() == PluginCapability.entries.flatMap { it.methods }.toSet())
         val manifest = PluginManifestParser.parse(JSONObject().put("id", "org.melox.rc.wire-fields." + java.util.UUID.randomUUID().toString().replace("-", "")).put("name", "Wire fields")

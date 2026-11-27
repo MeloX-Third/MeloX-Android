@@ -116,7 +116,10 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
         val value = detail(PluginCapability.Playlists, "playlistDetail", playlist.id, page, pageSize)
         val summary = codec.playlist(value.getJSONObject("summary")); require(summary.id == playlist.id)
         val tracks = codec.tracks(value.getJSONObject("tracks"), page, pageSize)
-        return MusicPlaylistDetail(summary, tracks.items, tracks.total, tracks.hasMore)
+        val memberIds = value.optJSONArray("memberIds")?.let { members ->
+            List(members.length()) { index -> members.getString(index) }
+        }
+        return MusicPlaylistDetail(summary, tracks.items, tracks.total, tracks.hasMore, memberIds)
     }
     override suspend fun albumDetail(album: MusicAlbumSummary, page: Int, pageSize: Int): MusicAlbumDetail {
         val value = detail(PluginCapability.Albums, "albumDetail", album.id, page, pageSize)

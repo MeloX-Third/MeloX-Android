@@ -9,7 +9,7 @@ const models = fixture.models;
 const page = item => ({items:[structuredClone(item)], page:1, pageSize:10, total:1, hasMore:false});
 const values = {...models, searchPage:page(models.track), playlistPage:page(models.playlist), albumPage:page(models.album),
   artistPage:page(models.artist), rankingPage:page(models.ranking),
-  playlistDetail:{summary:models.playlist,tracks:page(models.track)}, albumDetail:{summary:models.album,tracks:page(models.track)},
+  playlistDetail:{summary:models.playlist,tracks:page(models.track),memberIds:["member/1"]}, albumDetail:{summary:models.album,tracks:page(models.track)},
   artistDetail:{summary:models.artist,tracks:page(models.track)},
   homeFeed:{recommendedPlaylists:[models.playlist],newSongs:[models.track],rankings:[models.ranking]},
   accountSummary:models.account, authenticationStatus:{type:'signedIn',account:models.account}, favoriteState:true,writeAcknowledgement:null};

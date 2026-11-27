@@ -28,7 +28,7 @@
 
 返回类型详见 `plugin-sdk/src/types.ts` 和 `schema/protocol-v1.schema.json`。目录列表返回
 `MusicPage<T>`；详情返回 `{summary, tracks: MusicPage<MusicTrack>}`，summary.id 必须等于
-请求 ID。所有分页均从 1 开始且保留 total；未声明能力的栏目不显示。不存在的 ID 应报错，
+请求 ID。歌单详情可返回 `memberIds`，与本页歌曲逐项对应。重复歌曲应使用不同的成员 ID。同一歌单的成员 ID 在翻页时也应保持唯一。所有分页均从 1 开始且保留 total；未声明能力的栏目不显示。不存在的 ID 应报错，
 不要将不支持的方法写成返回空列表。HomeFeed 返回 recommendedPlaylists、newSongs、rankings。
 Favorites 查询返回严格 boolean，写入成功 resolve void，失败 reject；不能以猜测状态代替查询。
 Download 使用和播放相同的标准 resolution，宿主只下载 playable，仍检查域名、DNS、配额及启停状态。

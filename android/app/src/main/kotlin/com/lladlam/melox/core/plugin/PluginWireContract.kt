@@ -22,7 +22,22 @@ internal object PluginWireContract {
             "searchAlbums", "savedAlbums" -> page(value, ::album)
             "searchArtists", "followedArtists" -> page(value, ::artist)
             "rankings" -> page(value, ::ranking)
-            "playlistDetail" -> { playlist(value.getJSONObject("summary")); page(value.getJSONObject("tracks"), ::track) }
+            "playlistDetail" -> {
+                playlist(value.getJSONObject("summary"))
+                val tracks = value.getJSONObject("tracks")
+                page(tracks, ::track)
+                optional(value, "memberIds") { key ->
+                    val members = value.getJSONArray(key)
+                    require(members.length() == tracks.getJSONArray("items").length()) { "playlist member count mismatch" }
+                    val seen = hashSetOf<String>()
+                    for (index in 0 until members.length()) {
+                        val member = members.opt(index) as? String ?: error("invalid playlist member ID")
+                        require(member.isNotBlank() && member.toByteArray(Charsets.UTF_8).size <= 4096 && seen.add(member)) {
+                            "invalid or duplicate playlist member ID"
+                        }
+                    }
+                }
+            }
             "albumDetail" -> { album(value.getJSONObject("summary")); page(value.getJSONObject("tracks"), ::track) }
             "artistDetail" -> { artist(value.getJSONObject("summary")); page(value.getJSONObject("tracks"), ::track) }
             "homeFeed" -> {
