@@ -32,7 +32,7 @@ test("catalog example serves collections, details, pagination, home and library"
   assert.equal((await plugin.artistDetail(artist.id, 1, 30)).tracks.items.length, 1);
   assert.equal((await plugin.rankingTracks(ranking.id, 2, 30)).items.length, 0);
   assert.equal((await plugin.homeFeed(0, 1, 0)).newSongs.length, 1);
-  assert.equal((await plugin.userPlaylists(1, 30)).items[0].id, playlist.id);
+  assert.equal((await plugin.userPlaylists(1, 30, { storage: { get: async () => null } })).items[0].id, playlist.id);
   assert.equal((await plugin.savedAlbums(1, 30)).items[0].id, album.id);
   assert.equal((await plugin.followedArtists(1, 30)).items[0].id, artist.id);
   assert.equal((await plugin.resolveDownload({id:"tone-440hz"})).type, "playable");
@@ -87,6 +87,30 @@ test("catalog playlist writes persist across fresh contexts and reject read-only
   assert.equal(await plugin.addTrackToPlaylist(track, playlist.id, host), undefined);
   const restored = await load("catalog");
   assert.equal((await restored.playlistDetail(playlist.id, 1, 30, host)).tracks.items[0].id, track.id);
+});
+
+test("catalog edits duplicate occurrences and upgrades saved demo state", async () => {
+  const plugin = await load("catalog");
+  const values = new Map([["playlist.saved-signals.tone-440hz", "true"]]);
+  const host = { storage: { get: async key => values.get(key) ?? null, set: async (key, value) => { values.set(key, value); } } };
+  assert.equal((await plugin.playlistDetail("saved-signals", 1, 10, host)).tracks.total, 1);
+  const { id } = await plugin.createPlaylist("Before", host);
+  const track = { id: "tone-440hz" };
+  await plugin.addTrackToPlaylist(track, id, host);
+  await plugin.addTrackToPlaylist(track, id, host);
+  const [first, second] = (await plugin.playlistDetail(id, 1, 10, host)).memberIds;
+  assert.notEqual(first, second);
+  await plugin.movePlaylistMember(id, second, first, true, host);
+  const restored = await load("catalog");
+  assert.equal((await restored.playlistDetail(id, 1, 1, host)).memberIds[0], second);
+  await restored.removePlaylistMember(id, first, host);
+  await restored.renamePlaylist(id, "After", host);
+  const result = await restored.playlistDetail(id, 1, 10, host);
+  assert.equal(result.summary.title, "After");
+  assert.equal(result.memberIds.length, 1);
+  assert.equal(result.memberIds[0], second);
+  await restored.deletePlaylist(id, host);
+  await assert.rejects(() => restored.playlistDetail(id, 1, 10, host), { code: "NOT_FOUND" });
 });
 
 test("resolver template handles a foreign track through the UNM /match contract", async () => {
