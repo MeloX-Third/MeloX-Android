@@ -13,8 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lladlam.melox.core.music.model.*
-import com.lladlam.melox.core.music.provider.MusicProviderRegistry
-import com.lladlam.melox.core.plugin.*
+import com.lladlam.melox.core.music.provider.*
+import com.lladlam.melox.core.plugin.PluginErrors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -32,7 +32,7 @@ internal fun PluginCatalogBrowser(
     initialSection: String = "songs",
     trackContent: @Composable (List<MusicTrack>) -> Unit,
 ) {
-    val provider = SourceId.parse(sourceValue)?.let { registry[it] } as? PluginMusicProvider
+    val provider = SourceId.parse(sourceValue)?.let { registry[it] }
     key(sourceValue, generation) {
         PluginCatalogContent(registry, sourceValue, query, generation, initialSection, provider, trackContent)
     }
@@ -45,7 +45,7 @@ private fun PluginCatalogContent(
     query: String,
     generation: Long,
     initialSection: String,
-    provider: PluginMusicProvider?,
+    provider: MusicProvider?,
     trackContent: @Composable (List<MusicTrack>) -> Unit,
 ) {
     var section by rememberSaveable(sourceValue, initialSection) { mutableStateOf(initialSection) }
@@ -71,21 +71,33 @@ private fun PluginCatalogContent(
     var renameOpen by remember(collection, page) { mutableStateOf(false) }
     var mutationBusy by remember { mutableStateOf(false) }
     var renameError by remember(collection, page) { mutableStateOf<String?>(null) }
+    val search = (provider as? SearchCapability)?.takeIf { provider.supports(MusicCapability.Search) }
+    val catalogSearch = provider as? CatalogSearchCapability
+    val playlists = (provider as? PlaylistCatalogCapability)?.takeIf { provider.supports(MusicCapability.Playlists) }
+    val albums = (provider as? AlbumCapability)?.takeIf { provider.supports(MusicCapability.Albums) }
+    val artists = (provider as? ArtistCapability)?.takeIf { provider.supports(MusicCapability.Artists) }
+    val rankings = (provider as? RankingCatalogCapability)?.takeIf { provider.supports(MusicCapability.Rankings) }
+    val home = (provider as? HomeFeedCapability)?.takeIf { provider.supports(MusicCapability.HomeRecommendations) }
+    val library = (provider as? UserLibraryCapability)?.takeIf { provider.supports(MusicCapability.Library) }
+    val collections = (provider as? LibraryCollectionCapability)?.takeIf { provider.supports(MusicCapability.Library) }
+    val rename = (provider as? PlaylistRenameCapability)?.takeIf { provider.supports(MusicCapability.PlaylistRename) }
+    val delete = (provider as? PlaylistDeleteCapability)?.takeIf { provider.supports(MusicCapability.PlaylistDelete) }
+    val remove = (provider as? PlaylistRemoveMemberCapability)?.takeIf { provider.supports(MusicCapability.PlaylistRemoveMember) }
+    val reorder = (provider as? PlaylistReorderCapability)?.takeIf { provider.supports(MusicCapability.PlaylistReorder) }
     val sections = buildList {
-        fun addIf(capability: PluginCapability, key: String, label: String) {
-            if (provider?.manifest?.capabilities?.contains(capability) == true) add(key to label)
+        if (search != null) add("songs" to "歌曲")
+        if (playlists != null && (query.isBlank() || catalogSearch != null)) add("playlists" to "歌单")
+        if (albums != null && catalogSearch != null) add("albums" to "专辑")
+        if (artists != null && catalogSearch != null) add("artists" to "歌手")
+        if (rankings != null) add("rankings" to "榜单")
+        if (home != null) add("home" to "推荐")
+        if (library != null) add("library" to "我的歌单")
+        if (collections != null) {
+            add("savedAlbums" to "收藏专辑")
+            add("followedArtists" to "关注歌手")
         }
-        addIf(PluginCapability.Search, "songs", "歌曲")
-        addIf(PluginCapability.Playlists, "playlists", "歌单")
-        addIf(PluginCapability.Albums, "albums", "专辑")
-        addIf(PluginCapability.Artists, "artists", "歌手")
-        addIf(PluginCapability.Rankings, "rankings", "榜单")
-        addIf(PluginCapability.HomeFeed, "home", "推荐")
-        addIf(PluginCapability.UserLibrary, "library", "我的歌单")
-        addIf(PluginCapability.UserLibrary, "savedAlbums", "收藏专辑")
-        addIf(PluginCapability.UserLibrary, "followedArtists", "关注歌手")
     }
-    LaunchedEffect(sourceValue, generation) {
+    LaunchedEffect(sourceValue, generation, sections) {
         if (sections.none { it.first == section }) section = sections.firstOrNull()?.first ?: "songs"
     }
     LaunchedEffect(sourceValue, query, generation, section, collection, page, revision) {
@@ -105,28 +117,28 @@ private fun PluginCatalogContent(
                 else rows = values.filterNotNull()
             }
             when (val selected = collection) {
-                is MusicPlaylistSummary -> provider.playlistDetail(selected, page, size).let {
+                is MusicPlaylistSummary -> requireNotNull(provider as? PlaylistCapability).playlistDetail(selected, page, size).let {
                     members = it.memberIds?.zip(it.tracks).orEmpty()
                     editablePlaylist = it.summary.takeIf { summary -> summary.isEditable == true }
                     tracks = it.tracks; hasMore = it.hasMore ?: (it.total?.let { total -> page.toLong() * size < total } ?: (tracks.size == size))
                 }
-                is MusicAlbumSummary -> provider.albumDetail(selected, page, size).let {
+                is MusicAlbumSummary -> requireNotNull(provider as? AlbumCapability).albumDetail(selected, page, size).let {
                     tracks = it.tracks; hasMore = it.hasMore ?: (it.totalTracks?.let { total -> page.toLong() * size < total } ?: (tracks.size == size))
                 }
-                is MusicArtistSummary -> provider.artistDetail(selected, page, size).let {
+                is MusicArtistSummary -> requireNotNull(provider as? ArtistCapability).artistDetail(selected, page, size).let {
                     tracks = it.tracks; hasMore = it.hasMore ?: (it.totalTracks?.let { total -> page.toLong() * size < total } ?: (tracks.size == size))
                 }
-                is MusicRankingSummary -> apply(provider.rankingTracks(selected, page, size))
+                is MusicRankingSummary -> apply(requireNotNull(provider as? RankingCapability).rankingTracks(selected, page, size))
                 else -> when (section) {
-                    "songs" -> if (query.isNotBlank()) apply(provider.searchSongs(query.trim(), page, size))
-                    "playlists" -> apply(if (query.isBlank()) provider.playlists(page, size) else provider.searchPlaylists(query.trim(), page, size))
-                    "albums" -> apply(provider.searchAlbums(query.trim(), page, size))
-                    "artists" -> apply(provider.searchArtists(query.trim(), page, size))
-                    "rankings" -> apply(provider.rankings(page, size))
-                    "home" -> provider.homeFeed(30, 30, 30).let { rows = it.recommendedPlaylists + it.rankings; tracks = it.newSongs }
-                    "library" -> { accountName = provider.accountSummary()?.displayName; apply(provider.userPlaylists(page, size)) }
-                    "savedAlbums" -> apply(provider.savedAlbums(page, size))
-                    "followedArtists" -> apply(provider.followedArtists(page, size))
+                    "songs" -> if (query.isNotBlank()) apply(requireNotNull(search).searchSongs(query.trim(), page, size))
+                    "playlists" -> apply(if (query.isBlank()) requireNotNull(playlists).playlists(page, size) else requireNotNull(catalogSearch).searchPlaylists(query.trim(), page, size))
+                    "albums" -> apply(requireNotNull(catalogSearch).searchAlbums(query.trim(), page, size))
+                    "artists" -> apply(requireNotNull(catalogSearch).searchArtists(query.trim(), page, size))
+                    "rankings" -> apply(requireNotNull(rankings).rankings(page, size))
+                    "home" -> requireNotNull(home).homeFeed(30, 30, 30).let { rows = it.recommendedPlaylists + it.rankings; tracks = it.newSongs }
+                    "library" -> { accountName = requireNotNull(library).accountSummary()?.displayName; apply(requireNotNull(library).userPlaylists(page, size)) }
+                    "savedAlbums" -> apply(requireNotNull(collections).savedAlbums(page, size))
+                    "followedArtists" -> apply(requireNotNull(collections).followedArtists(page, size))
                 }
             }
             if (registry.generation != generation || registry[provider.sourceId] !== provider) {
@@ -144,10 +156,10 @@ private fun PluginCatalogContent(
         if (collection != null) TextButton(onClick = { collection = null }) { Text("返回列表") }
         val playlist = editablePlaylist
         if (playlist != null && provider != null && !loading && error == null) {
-            if (PluginCapability.PlaylistRename in provider.manifest.capabilities) TextButton(onClick = { renameError = null; renameOpen = true }) {
+            if (rename != null) TextButton(onClick = { renameError = null; renameOpen = true }) {
                 Text(stringResource(R.string.player_rename_playlist))
             }
-            if (PluginCapability.PlaylistDelete in provider.manifest.capabilities) {
+            if (delete != null) {
                 TextButton(enabled = !mutationBusy, onClick = { deleteError = null; deleteOpen = true }) {
                     Text(stringResource(R.string.player_delete_playlist))
                 }
@@ -162,7 +174,7 @@ private fun PluginCatalogContent(
                                 deleteError = null
                                 scope.launch {
                                     try {
-                                        provider.deletePlaylist(playlist)
+                                        delete.deletePlaylist(playlist)
                                         if ((collection as? MusicPlaylistSummary)?.id == playlist.id) collection = null
                                         revision++
                                     } catch (cancelled: CancellationException) { throw cancelled }
@@ -179,7 +191,7 @@ private fun PluginCatalogContent(
                     },
                 )
             }
-            if (PluginCapability.PlaylistRemoveMember in provider.manifest.capabilities && members.isNotEmpty()) {
+            if (remove != null && members.isNotEmpty()) {
                 TextButton(enabled = !mutationBusy, onClick = { removeError = null; removeOpen = true }) {
                     Text(stringResource(R.string.player_remove_from_playlist))
                 }
@@ -196,7 +208,7 @@ private fun PluginCatalogContent(
                                         removeError = null
                                         scope.launch {
                                             try {
-                                                provider.removePlaylistMember(playlist, memberId)
+                                                remove.removePlaylistMember(playlist, memberId)
                                                 removeOpen = false
                                                 if (members.size == 1 && page > 1 && !hasMore) page--
                                                 revision++
@@ -216,7 +228,7 @@ private fun PluginCatalogContent(
                     },
                 )
             }
-            if (PluginCapability.PlaylistReorder in provider.manifest.capabilities && members.size > 1) {
+            if (reorder != null && members.size > 1) {
                 TextButton(enabled = !mutationBusy, onClick = { reorderError = null; reorderOpen = true }) {
                     Text(stringResource(R.string.plugin_playlist_reorder))
                 }
@@ -234,7 +246,7 @@ private fun PluginCatalogContent(
                                     reorderError = null
                                     scope.launch {
                                         try {
-                                            provider.movePlaylistMember(playlist, memberId, anchorId, before = offset < 0)
+                                            reorder.movePlaylistMember(playlist, memberId, anchorId, before = offset < 0)
                                             reorderOpen = false
                                             revision++
                                         } catch (cancelled: CancellationException) { throw cancelled }
@@ -263,7 +275,7 @@ private fun PluginCatalogContent(
                     },
                 )
             }
-            if (renameOpen) MeloXProviderPlaylistSyncSheet(
+            if (renameOpen && rename != null) MeloXProviderPlaylistSyncSheet(
                 title = playlist.title, trackName = null, canRename = true, canDelete = false,
                 canRemove = false, canMoveUp = false, canMoveDown = false,
                 busy = mutationBusy, error = renameError,
@@ -273,7 +285,7 @@ private fun PluginCatalogContent(
                         renameError = null
                         scope.launch {
                             try {
-                                provider.renamePlaylist(playlist, name)
+                                rename.renamePlaylist(playlist, name)
                                 renameOpen = false
                                 revision++
                             } catch (cancelled: CancellationException) { throw cancelled }

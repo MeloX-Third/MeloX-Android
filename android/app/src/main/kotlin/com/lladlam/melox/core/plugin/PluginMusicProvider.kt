@@ -11,7 +11,7 @@ import org.json.JSONObject
 /** Maps only versioned MeloX fields. Platform-specific conversion belongs in the script. */
 class PluginMusicProvider(val manifest: PluginManifest, private val runtime: PluginInvoker) :
     MusicProvider, SearchCapability, PlaybackCapability, LyricsCapability, CatalogSearchCapability,
-    PlaylistCapability, AlbumCapability, ArtistCapability, RankingCatalogCapability, HomeFeedCapability,
+    PlaylistCatalogCapability, AlbumCapability, ArtistCapability, RankingCatalogCapability, HomeFeedCapability,
     UserLibraryCapability, LibraryCollectionCapability, FavoriteStateCapability, AuthenticationCapability, DownloadCapability,
     FallbackPlaybackCapability, PlaylistWriteCapability, PlaylistCreateCapability, PlaylistRenameCapability, PlaylistDeleteCapability, PlaylistRemoveMemberCapability, PlaylistReorderCapability {
     override val sourceId = manifest.sourceId
@@ -68,7 +68,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
         return JSONObject(if (query == null) call(capability, method, page, size) else call(capability, method, query, page, size))
     }
 
-    suspend fun playlists(page: Int = 1, pageSize: Int = 30) = codec.page(
+    override suspend fun playlists(page: Int, pageSize: Int) = codec.page(
         catalogPage(PluginCapability.Playlists, "playlists", null, page, pageSize), page, pageSize, codec::playlist)
     override suspend fun writablePlaylists(page: Int, pageSize: Int): MusicPage<MusicPlaylistSummary> = codec.page(
         catalogPage(PluginCapability.PlaylistWrite, "writablePlaylists", null, page, pageSize), page, pageSize,

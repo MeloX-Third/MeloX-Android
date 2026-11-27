@@ -248,6 +248,11 @@ interface PlaylistCapability {
     ): MusicPlaylistDetail
 }
 
+/** Providers that offer a browsable playlist catalog in addition to details. */
+interface PlaylistCatalogCapability : PlaylistCapability {
+    suspend fun playlists(page: Int = 1, pageSize: Int = 30): MusicPage<MusicPlaylistSummary>
+}
+
 /** Rankings are not forced into playlist semantics even if a provider implements them similarly. */
 interface RankingCapability {
     suspend fun rankingTracks(
