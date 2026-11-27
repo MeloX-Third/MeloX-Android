@@ -56,6 +56,7 @@ class PluginRcDeviceRunner : Instrumentation() {
             queuePersistence(evidence)
             runtimeAndStorage(evidence)
             vaultIsolation(evidence)
+            kuwoAccountSlots(evidence)
             if (faults) PluginRcFaultChecks.run(this, evidence) else evidence += "NOT_RUN isolated resource/storage fault matrix (use -e faults true)"
             oauthOrigin?.let {
                 PluginRcNetworkFaultChecks.run(it, evidence)
@@ -243,6 +244,37 @@ class PluginRcDeviceRunner : Instrumentation() {
             }
             evidence += "PASS QuickJS Promise, storage Broker, no fetch/Java bridge, watchdog, coroutine cancellation and rebind"
         } finally { PluginStorage.clear(targetContext, manifest.sourceId, emptyList()) }
+    }
+
+    private fun kuwoAccountSlots(evidence: MutableList<String>) = runBlocking {
+        val prefix = "rc-kuwo-${UUID.randomUUID()}"
+        val names = mutableSetOf<String>()
+        val sandbox = object : ContextWrapper(targetContext) {
+            override fun getApplicationContext(): Context = this
+            override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
+                val scoped = "$prefix-$name"
+                names.add(scoped)
+                return targetContext.getSharedPreferences(scoped, mode)
+            }
+        }
+        val registration = com.lladlam.melox.core.provider.kuwo.KuwoProviderRegistration
+        val store = com.lladlam.melox.core.provider.kuwo.KuwoSessionStore
+        val accounts = com.lladlam.melox.core.music.provider.PlaybackAccountStore
+        try {
+            store.write(sandbox, com.lladlam.melox.core.provider.kuwo.KuwoSession("test-main", "1", "Main"))
+            store.write(sandbox, com.lladlam.melox.core.provider.kuwo.KuwoSession("test-playback", "2", "Playback"), playback = true)
+            accounts.setEnabled(sandbox, true)
+            val playback = registration.create(sandbox, okhttp3.OkHttpClient(), forPlayback = true)
+            check(playback.accountSummary()?.id == "2")
+            registration.clearPlaybackAccount(sandbox)
+            check(playback.accountSummary()?.id == "1")
+            store.write(sandbox, com.lladlam.melox.core.provider.kuwo.KuwoSession("test-playback", "2", "Playback"), playback = true)
+            registration.logout(sandbox)
+            check(!registration.account(sandbox).first && playback.accountSummary()?.id == "2")
+            evidence += "PASS Kuwo primary and playback session selection and independent clearing"
+        } finally {
+            names.forEach { targetContext.deleteSharedPreferences(it) }
+        }
     }
 
     private fun vaultIsolation(evidence: MutableList<String>) {
