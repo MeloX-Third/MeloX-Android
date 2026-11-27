@@ -17,6 +17,9 @@ object PluginPermissions {
         if (PluginCapability.PlaylistCreate in manifest.capabilities) {
             append("\n歌单创建：可在当前账号下创建歌单")
         }
+        if (PluginCapability.PlaylistRename in manifest.capabilities) {
+            append("\n歌单改名：可修改当前账号的可编辑歌单名称")
+        }
         if (PluginCapability.Resolver in manifest.capabilities) {
             append("\n解析器：可返回任意 HTTP(S) 渐进式音频 URL（不要求域名白名单）")
         }

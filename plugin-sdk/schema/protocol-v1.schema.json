@@ -56,7 +56,7 @@
       "type": "object", "required": ["id", "title"], "properties": {
         "id": { "$ref": "#/$defs/resourceId" }, "title": { "$ref": "#/$defs/catalogText" },
         "creatorName": { "$ref": "#/$defs/catalogText" }, "description": { "$ref": "#/$defs/catalogText" }, "artworkUrl": { "type": "string", "maxLength": 4096 },
-        "trackCount": { "type": "integer", "minimum": 0, "maximum": 2147483647 }, "playCount": { "$ref": "#/$defs/count" }
+        "trackCount": { "type": "integer", "minimum": 0, "maximum": 2147483647 }, "playCount": { "$ref": "#/$defs/count" }, "isEditable": { "type": "boolean" }
       }
     },
     "album": {

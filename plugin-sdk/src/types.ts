@@ -69,7 +69,7 @@ export class PluginError extends Error {
   constructor(readonly code: PluginErrorCode, message = code) { super(message); this.name = "PluginError"; }
 }
 
-export interface PlaylistSummary { id: string; title: string; artworkUrl?: string; creatorName?: string; description?: string; trackCount?: number; playCount?: number }
+export interface PlaylistSummary { id: string; title: string; artworkUrl?: string; creatorName?: string; description?: string; trackCount?: number; playCount?: number; isEditable?: boolean }
 export interface AlbumSummary { id: string; title: string; artists?: Array<{ id?: string; name: string }>; artworkUrl?: string; trackCount?: number; releaseDate?: string }
 export interface ArtistSummary { id: string; name: string; artworkUrl?: string; description?: string; songCount?: number; albumCount?: number }
 export interface RankingSummary { id: string; title: string; subtitle?: string; artworkUrl?: string }
@@ -87,6 +87,7 @@ export interface MusicPlugin {
   /** List only playlists the selected account can append tracks to. */
   writablePlaylists?(page: number, pageSize: number, context: HostContext): Promise<MusicPage<PlaylistSummary>>;
   createPlaylist?(name: string, context: HostContext): Promise<PlaylistSummary>;
+  renamePlaylist?(playlistId: string, name: string, context: HostContext): Promise<void>;
   addTrackToPlaylist?(track: MusicTrack, playlistId: string, context: HostContext): Promise<void>;
   searchPlaylists?(query: string, page: number, pageSize: number, context: HostContext): Promise<MusicPage<PlaylistSummary>>;
   playlistDetail?(id: string, page: number, pageSize: number, context: HostContext): Promise<CollectionDetail<PlaylistSummary>>;

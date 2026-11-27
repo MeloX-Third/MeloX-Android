@@ -1,7 +1,7 @@
 {
   "models": {
     "track": {"id":"opaque-track","title":"Title","artists":[{"id":"artist","name":"Artist"}],"album":{"id":"album","name":"Album","artworkUrl":"https://example.com/a.png"},"artworkUrl":"https://example.com/t.png","durationMs":120000,"availability":"playable","bestQuality":"lossless","bestBitrate":1000000},
-    "playlist": {"id":"playlist","title":"Playlist","artworkUrl":"https://example.com/p.png","creatorName":"Creator","description":"Description","trackCount":1,"playCount":3},
+    "playlist": {"id":"playlist","title":"Playlist","artworkUrl":"https://example.com/p.png","creatorName":"Creator","description":"Description","trackCount":1,"playCount":3,"isEditable":true},
     "album": {"id":"album","title":"Album","artists":[{"id":"artist","name":"Artist"}],"artworkUrl":"https://example.com/a.png","trackCount":1,"releaseDate":"2026-11-05"},
     "artist": {"id":"artist","name":"Artist","artworkUrl":"https://example.com/r.png","description":"Description","songCount":1,"albumCount":1},
     "ranking": {"id":"ranking","title":"Ranking","subtitle":"Subtitle","artworkUrl":"https://example.com/r.png"},
@@ -18,6 +18,6 @@
     "homeFeed":"homeFeed", "accountSummary":"accountSummary", "authenticationStatus":"authenticationStatus",
     "resolvePlayback":"playbackResolution", "resolveDownload":"playbackResolution", "resolveFallback":"playbackResolution", "lyrics":"lyrics",
     "isFavorite":"favoriteState", "setFavorite":"writeAcknowledgement",
-    "writablePlaylists":"playlistPage", "addTrackToPlaylist":"writeAcknowledgement", "createPlaylist":"playlist"
+    "writablePlaylists":"playlistPage", "addTrackToPlaylist":"writeAcknowledgement", "createPlaylist":"playlist", "renamePlaylist":"writeAcknowledgement"
   }
 }

@@ -109,6 +109,27 @@ class PluginCatalogProviderTest {
         assertTrue(runCatching { readOnly.createPlaylist(name) }.exceptionOrNull() is IllegalArgumentException)
     }
 
+    @Test fun playlistRenameRequiresAnEditablePlaylistFromTheSameSource() = runBlocking {
+        val editable = """{"id":"playlist/1","title":"Before","isEditable":true}"""
+        var writes = 0
+        val plugin = provider(setOf(PluginCapability.Playlists, PluginCapability.PlaylistRename)) { method ->
+            when (method) {
+                "playlists" -> page(editable)
+                "renamePlaylist" -> { writes++; "null" }
+                else -> error(method)
+            }
+        }
+        val playlist = plugin.playlists(1, 30).items.single()
+        assertEquals(true, playlist.isEditable)
+        plugin.renamePlaylist(playlist, "After")
+        assertTrue(runCatching { plugin.renamePlaylist(playlist.copy(isEditable = false), "After") }.isFailure)
+        assertTrue(runCatching { plugin.renamePlaylist(playlist.copy(id = MusicResourceId(MusicSource.Netease, "1")), "After") }.isFailure)
+        assertTrue(runCatching { plugin.renamePlaylist(playlist, " ") }.isFailure)
+        assertEquals(1, writes)
+        val reader = provider(setOf(PluginCapability.Playlists)) { page(editable) }
+        assertEquals(false, reader.playlists(1, 30).items.single().isEditable)
+    }
+
     @Test fun favoritesRequireBooleanStateAndVoidAcknowledgement() = runBlocking {
         var favorite = false
         val plugin = provider { method -> when (method) {

@@ -14,6 +14,7 @@
 | playlists | playlists(page, pageSize), searchPlaylists(query, page, pageSize), playlistDetail(id, page, pageSize) | 动态音源 → 歌单 → 详情/上下页 |
 | playlistWrite | writablePlaylists(page, pageSize), addTrackToPlaylist(track, playlistId) | 歌曲菜单 → 添加到已有歌单 |
 | playlistCreate | createPlaylist(name) | 歌曲菜单 → 新建并添加（同时需要 `playlistWrite`） |
+| playlistRename | renamePlaylist(playlistId, name) | 插件歌单详情 → 改名。详情返回 `isEditable: true` 才显示 |
 | albums | searchAlbums(query, page, pageSize), albumDetail(id, page, pageSize) | 动态音源 → 专辑 → 歌曲 |
 | artists | searchArtists(query, page, pageSize), artistDetail(id, page, pageSize) | 动态音源 → 歌手 → 歌曲 |
 | rankings | rankings(page, pageSize), rankingTracks(id, page, pageSize) | 动态音源 → 榜单 → 歌曲 |

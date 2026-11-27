@@ -13,7 +13,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
     MusicProvider, SearchCapability, PlaybackCapability, LyricsCapability, CatalogSearchCapability,
     PlaylistCapability, AlbumCapability, ArtistCapability, RankingCatalogCapability, HomeFeedCapability,
     UserLibraryCapability, LibraryCollectionCapability, FavoriteStateCapability, AuthenticationCapability, DownloadCapability,
-    FallbackPlaybackCapability, PlaylistWriteCapability, PlaylistCreateCapability {
+    FallbackPlaybackCapability, PlaylistWriteCapability, PlaylistCreateCapability, PlaylistRenameCapability {
     override val sourceId = manifest.sourceId
     override val displayName = manifest.name
     override val capabilities = manifest.capabilities.mapTo(mutableSetOf()) {
@@ -24,6 +24,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
             PluginCapability.Playlists -> MusicCapability.Playlists
             PluginCapability.PlaylistWrite -> MusicCapability.PlaylistWrite
             PluginCapability.PlaylistCreate -> MusicCapability.PlaylistCreate
+            PluginCapability.PlaylistRename -> MusicCapability.PlaylistRename
             PluginCapability.Albums -> MusicCapability.Albums
             PluginCapability.Artists -> MusicCapability.Artists
             PluginCapability.Rankings -> MusicCapability.Rankings
@@ -74,6 +75,13 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
         require(name.isNotBlank() && name.codePointCount(0, name.length) <= 4096) { "invalid playlist name" }
         val result = JSONObject(call(PluginCapability.PlaylistCreate, "createPlaylist", name))
         return codec.playlist(result).copy(isEditable = true)
+    }
+
+    override suspend fun renamePlaylist(playlist: MusicPlaylistSummary, name: String) {
+        require(playlist.id.sourceId == sourceId && playlist.isEditable == true) { "playlist is not editable for this source" }
+        require(playlist.id.value.toByteArray(Charsets.UTF_8).size <= 4096) { "playlist id too large" }
+        require(name.isNotBlank() && name.codePointCount(0, name.length) <= 4096) { "invalid playlist name" }
+        call(PluginCapability.PlaylistRename, "renamePlaylist", playlist.id.value, name)
     }
 
     override suspend fun addTrackToPlaylist(track: MusicTrack, playlist: MusicPlaylistSummary) {

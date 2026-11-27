@@ -12,7 +12,7 @@ internal object PluginWireContract {
         PluginJson.check(raw)
         when (method) {
             "isFavorite" -> { require(raw.trim() in setOf("true", "false")); return }
-            "setFavorite", "addTrackToPlaylist" -> { require(raw.trim() == "null"); return }
+            "setFavorite", "addTrackToPlaylist", "renamePlaylist" -> { require(raw.trim() == "null"); return }
             "accountSummary" -> if (raw.trim() == "null") return
         }
         val value = JSONObject(raw)
@@ -70,6 +70,7 @@ internal object PluginWireContract {
         listOf("creatorName", "description").forEach { key -> optional(v, key) { text(v, it, 4096) } }
         optional(v, "trackCount") { number(v, it, 0, Int.MAX_VALUE.toLong()) }
         optional(v, "playCount") { number(v, it) }
+        optional(v, "isEditable") { boolean(v, it) }
     }
     private fun album(v: JSONObject) {
         id(v); text(v, "title", 4096); image(v)

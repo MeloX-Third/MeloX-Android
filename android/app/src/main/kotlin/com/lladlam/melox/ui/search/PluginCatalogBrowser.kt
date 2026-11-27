@@ -16,6 +16,10 @@ import com.lladlam.melox.core.music.provider.MusicProviderRegistry
 import com.lladlam.melox.core.plugin.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.lladlam.melox.R
+import com.lladlam.melox.ui.library.MeloXProviderPlaylistSyncSheet
 
 /** Source-neutral collection navigation inside the existing Search screen. */
 @Composable
@@ -53,6 +57,12 @@ private fun PluginCatalogContent(
     var error by remember { mutableStateOf<String?>(null) }
     var accountName by rememberSaveable(sourceValue) { mutableStateOf<String?>(null) }
     var loadedRequest by rememberRetainedPageState(sourceValue) { mutableStateOf<List<Any?>?>(null) }
+    val scope = rememberCoroutineScope()
+    var revision by remember { mutableIntStateOf(0) }
+    var editablePlaylist by remember(collection, page, revision) { mutableStateOf<MusicPlaylistSummary?>(null) }
+    var renameOpen by remember(collection, page) { mutableStateOf(false) }
+    var renameBusy by remember { mutableStateOf(false) }
+    var renameError by remember(collection, page) { mutableStateOf<String?>(null) }
     val sections = buildList {
         fun addIf(capability: PluginCapability, key: String, label: String) {
             if (provider?.manifest?.capabilities?.contains(capability) == true) add(key to label)
@@ -70,8 +80,8 @@ private fun PluginCatalogContent(
     LaunchedEffect(sourceValue, generation) {
         if (sections.none { it.first == section }) section = sections.firstOrNull()?.first ?: "songs"
     }
-    LaunchedEffect(sourceValue, query, generation, section, collection, page) {
-        val requestKey = listOf(sourceValue, query, generation, section, collection, page)
+    LaunchedEffect(sourceValue, query, generation, section, collection, page, revision) {
+        val requestKey = listOf(sourceValue, query, generation, section, collection, page, revision)
         if (loadedRequest == requestKey) return@LaunchedEffect
         rows = emptyList(); tracks = emptyList(); error = null; hasMore = false; accountName = null
         if (provider == null) { error = "音源已禁用或卸载：$sourceValue"; return@LaunchedEffect }
@@ -88,6 +98,7 @@ private fun PluginCatalogContent(
             }
             when (val selected = collection) {
                 is MusicPlaylistSummary -> provider.playlistDetail(selected, page, size).let {
+                    editablePlaylist = it.summary.takeIf { summary -> summary.isEditable == true }
                     tracks = it.tracks; hasMore = it.hasMore ?: (it.total?.let { total -> page.toLong() * size < total } ?: (tracks.size == size))
                 }
                 is MusicAlbumSummary -> provider.albumDetail(selected, page, size).let {
@@ -122,6 +133,34 @@ private fun PluginCatalogContent(
             items(sections) { (key, label) -> TextButton(onClick = { section = key }) { Text(if (section == key) "✓ $label" else label) } }
         }
         if (collection != null) TextButton(onClick = { collection = null }) { Text("返回列表") }
+        val playlist = editablePlaylist
+        if (playlist != null && provider != null && !loading && error == null) {
+            TextButton(onClick = { renameError = null; renameOpen = true }) {
+                Text(stringResource(R.string.player_rename_playlist))
+            }
+            if (renameOpen) MeloXProviderPlaylistSyncSheet(
+                title = playlist.title, trackName = null, canRename = true, canDelete = false,
+                canRemove = false, canMoveUp = false, canMoveDown = false,
+                busy = renameBusy, error = renameError,
+                onRename = { name ->
+                    if (!renameBusy && registry[provider.sourceId] === provider) {
+                        renameBusy = true
+                        renameError = null
+                        scope.launch {
+                            try {
+                                provider.renamePlaylist(playlist, name)
+                                renameOpen = false
+                                revision++
+                            } catch (cancelled: CancellationException) { throw cancelled }
+                            catch (failure: Exception) { renameError = PluginErrors.describe(failure) }
+                            finally { renameBusy = false }
+                        }
+                    }
+                },
+                onDelete = {}, onRemove = {}, onMoveUp = {}, onMoveDown = {},
+                onDismiss = { if (!renameBusy) renameOpen = false },
+            )
+        }
         accountName?.let { Text(it, Modifier.padding(horizontal = 20.dp)) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(enabled = page > 1 && !loading, onClick = { page-- }) { Text("上一页") }

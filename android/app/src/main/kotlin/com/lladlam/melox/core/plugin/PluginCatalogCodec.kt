@@ -16,7 +16,7 @@ internal class PluginCatalogCodec(private val manifest: PluginManifest) {
     fun playlist(value: JSONObject) = MusicPlaylistSummary(id(value), text(value, "title"), artworkUrl = artwork(value),
         creatorName = optionalText(value, "creatorName"), description = optionalText(value, "description"),
         trackCount = optionalLong(value, "trackCount")?.also { require(it <= Int.MAX_VALUE) }?.toInt(),
-        playCount = optionalLong(value, "playCount"), isEditable = false)
+        playCount = optionalLong(value, "playCount"), isEditable = PluginCapability.PlaylistRename in manifest.capabilities && value.opt("isEditable") == true)
     fun album(value: JSONObject) = MusicAlbumSummary(id(value), text(value, "title"), artworkUrl = artwork(value),
         artists = value.optJSONArray("artists")?.let { list ->
             require(list.length() <= 32)
