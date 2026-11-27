@@ -354,21 +354,28 @@ class DynamicMusicProviders {
     private fun validate(provider: MusicProvider) {
         val id = provider.sourceId
         require(id.value.startsWith("plugin:") && id.builtIn == null) { "dynamic provider needs a plugin source id" }
-        require(MusicCapability.Search !in provider.capabilities || provider is SearchCapability) { "missing search capability" }
-        require(MusicCapability.Playback !in provider.capabilities || provider is PlaybackCapability) { "missing playback capability" }
-        require(MusicCapability.Lyrics !in provider.capabilities || provider is LyricsCapability) { "missing lyrics capability" }
-        require(MusicCapability.Resolver !in provider.capabilities || provider is FallbackPlaybackCapability) { "missing resolver capability" }
+        for (capability in provider.capabilities) {
+            val implemented = when (capability) {
+                MusicCapability.Search -> provider is SearchCapability
+                MusicCapability.Playback -> provider is PlaybackCapability
+                MusicCapability.Lyrics -> provider is LyricsCapability
+                MusicCapability.Resolver -> provider is FallbackPlaybackCapability
+                MusicCapability.PlaylistWrite -> provider is PlaylistWriteCapability
+                MusicCapability.PlaylistCreate -> provider is PlaylistCreateCapability
+                MusicCapability.PlaylistRename -> provider is PlaylistRenameCapability
+                MusicCapability.PlaylistDelete -> provider is PlaylistDeleteCapability
+                MusicCapability.PlaylistRemoveMember -> provider is PlaylistRemoveMemberCapability
+                MusicCapability.PlaylistReorder -> provider is PlaylistReorderCapability
+                else -> true
+            }
+            require(implemented) { "missing $capability capability" }
+        }
     }
 
-    /** Register only an unused plugin identity; replacement requires explicit unregister. */
+    /** Register an unused plugin identity. */
     fun register(provider: MusicProvider, enabled: Boolean = true) = synchronized(lock) {
         validate(provider)
         val id = provider.sourceId
-        require(id.value.startsWith("plugin:") && id.builtIn == null) { "dynamic provider needs a plugin source id" }
-        require(MusicCapability.Search !in provider.capabilities || provider is SearchCapability) { "missing search capability" }
-        require(MusicCapability.Playback !in provider.capabilities || provider is PlaybackCapability) { "missing playback capability" }
-        require(MusicCapability.Lyrics !in provider.capabilities || provider is LyricsCapability) { "missing lyrics capability" }
-        require(MusicCapability.Resolver !in provider.capabilities || provider is FallbackPlaybackCapability) { "missing resolver capability" }
         require(id !in entries) { "duplicate dynamic provider source: ${id.value}" }
         entries = entries + (id to Entry(provider, enabled))
         generation++

@@ -145,6 +145,25 @@ class UnifiedMusicServiceTest {
         assertEquals(null, registry[id])
     }
 
+    @Test fun registryRejectsMissingPlaylistImplementationDuringRegistrationAndReplacement() {
+        val registry = MusicProviderRegistry(emptyList())
+        val id = com.lladlam.melox.core.music.model.SourceId.parse("plugin:org.example.playlists")!!
+        fun provider(vararg declared: MusicCapability) = object : MusicProvider {
+            override val sourceId = id
+            override val displayName = "Playlist source"
+            override val capabilities = declared.toSet()
+        }
+        val invalid = provider(MusicCapability.PlaylistReorder)
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { registry.registerDynamic(invalid) }
+        assertEquals(null, registry[id])
+        val active = provider()
+        registry.registerDynamic(active)
+        val generation = registry.generation
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { registry.replaceDynamic(invalid) }
+        assertEquals(active, registry[id])
+        assertEquals(generation, registry.generation)
+    }
+
     private class FakeSearchProvider(
         override val source: MusicSource,
         private val calls: MutableList<MusicSource>,
