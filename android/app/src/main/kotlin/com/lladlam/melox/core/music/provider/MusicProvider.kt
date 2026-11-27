@@ -283,6 +283,7 @@ class MusicProviderRegistry(
     providers: Iterable<MusicProvider>,
     private val dynamic: DynamicMusicProviders = DynamicMusicProviders(),
     private val awaitDynamicReady: () -> Unit = {},
+    private val playbackCacheScopes: Map<SourceId, () -> String> = emptyMap(),
 ) {
     private val providersBySource = buildMap {
         for (provider in providers) {
@@ -303,6 +304,12 @@ class MusicProviderRegistry(
 
     /** Unknown identities are unavailable, never mapped to a default provider. */
     operator fun get(source: SourceId): MusicProvider? = providersBySource[source] ?: dynamic[source]
+
+    fun playbackCacheKey(source: SourceId): String {
+        val scope = playbackCacheScopes[source]?.invoke() ?: return ""
+        return java.security.MessageDigest.getInstance("SHA-256").digest(scope.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+    }
 
     val generation: Long get() = dynamic.generation
     val changes: StateFlow<Long> get() = dynamic.changes

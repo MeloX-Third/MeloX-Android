@@ -1,6 +1,10 @@
 package com.lladlam.melox.core.music.provider
 
 import android.content.Context
+import com.lladlam.melox.core.music.model.MusicSource
+import com.lladlam.melox.core.music.model.SourceId
+import com.lladlam.melox.core.provider.spotify.SpotifySessionStore
+import com.lladlam.melox.core.provider.youtubemusic.YouTubeSessionStore
 import com.lladlam.melox.core.account.NeteaseSessionStore
 import com.lladlam.melox.core.provider.applemusic.AppleMusicApiClient
 import com.lladlam.melox.core.provider.applemusic.AppleMusicSessionStore
@@ -78,7 +82,39 @@ object MeloXMusicProviders {
                 playbackProviders = { nativeProviders },
             ),
             dynamic = dynamicProviders,
+            playbackCacheScopes = playbackCacheScopes(appContext),
             awaitDynamicReady = { com.lladlam.melox.core.plugin.MeloXPlugins.awaitRestored() },
+        )
+    }
+
+    private fun playbackCacheScopes(context: Context): Map<SourceId, () -> String> {
+        return mapOf(
+            SourceId.fromBuiltIn(MusicSource.Netease) to { PlaybackAccountStore.neteaseCookie(context) },
+            SourceId.fromBuiltIn(MusicSource.QQMusic) to { PlaybackAccountStore.qqSession(context).cookie },
+            SourceId.fromBuiltIn(MusicSource.Kugou) to { PlaybackAccountStore.kugouSession(context).let { session ->
+                listOf(session.userId, session.token, session.vipToken, session.dfid).joinToString("|")
+            } },
+            SourceId.fromBuiltIn(MusicSource.KugouLite) to { KugouSessionStore.readLite(context).let { session ->
+                listOf(session.userId, session.token, session.vipToken, session.dfid, session.auth).joinToString("|")
+            } },
+            SourceId.fromBuiltIn(MusicSource.AppleMusic) to { AppleMusicSessionStore.read(context).let { session ->
+                listOf(session.developerToken, session.musicUserToken, session.storefront).joinToString("|")
+            } },
+            SourceId.fromBuiltIn(MusicSource.Bilibili) to { listOf(
+                BilibiliSessionStore.read(context).cookie,
+                BilibiliPlaybackAssociationStore.revision(context),
+                "directedTraffic=${BilibiliDirectedTrafficPolicy.isActive(context)}",
+            ).joinToString("|") },
+            SourceId.fromBuiltIn(MusicSource.Spotify) to { SpotifySessionStore.read(context).let { session ->
+                listOf(session.accountId, session.expiresAtEpochMs).joinToString("|")
+            } },
+            SourceId.fromBuiltIn(MusicSource.YouTubeMusic) to { YouTubeSessionStore.authFingerprint(context) },
+            SourceId.fromBuiltIn(MusicSource.Kuwo) to { "" },
+            SourceId.fromBuiltIn(MusicSource.Jellyfin) to { JellyfinSessionStore.read(context).let { session ->
+                listOf(session.serverUrl, session.accessToken, session.userId).joinToString("|")
+            } },
+            SourceId.fromBuiltIn(MusicSource.Local) to { "local" },
+            SourceId.fromBuiltIn(MusicSource.Qishui) to { QishuiSessionStore.read(context).sessionId },
         )
     }
 

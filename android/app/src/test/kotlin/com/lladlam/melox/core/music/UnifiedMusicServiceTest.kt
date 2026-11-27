@@ -116,6 +116,20 @@ class UnifiedMusicServiceTest {
         assertEquals(id, rejected.failures.single().sourceId)
     }
 
+    @Test fun playbackCacheKeyTracksCurrentScopeWithoutExposingIt() {
+        val id = com.lladlam.melox.core.music.model.SourceId.fromBuiltIn(MusicSource.Netease)
+        var scope = "first-session"
+        val registry = MusicProviderRegistry(
+            listOf(FakeSearchProvider(MusicSource.Netease, mutableListOf())),
+            playbackCacheScopes = mapOf(id to { scope }),
+        )
+        val original = registry.playbackCacheKey(id)
+        assertTrue(original.matches(Regex("[a-f0-9]{64}")))
+        scope = "second-session"
+        assertTrue(original != registry.playbackCacheKey(id))
+        assertEquals("", registry.playbackCacheKey(com.lladlam.melox.core.music.model.SourceId.fromBuiltIn(MusicSource.QQMusic)))
+    }
+
     private class FakeSearchProvider(
         override val source: MusicSource,
         private val calls: MutableList<MusicSource>,
