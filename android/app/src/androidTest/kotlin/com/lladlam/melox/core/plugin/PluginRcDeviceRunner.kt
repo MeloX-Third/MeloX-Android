@@ -112,12 +112,17 @@ class PluginRcDeviceRunner : Instrumentation() {
         val sandbox = object : ContextWrapper(targetContext) {
             override fun getApplicationContext(): Context = this
             override fun getFilesDir(): java.io.File = root
+            override fun getNoBackupFilesDir(): java.io.File = root
         }
         val source = SourceId.parse("plugin:org.melox.rc.lifecycle")!!
-        fun archive(version: String, script: String = "globalThis.meloxPlugin={};"): ByteArray {
+        val storageScript = """globalThis.meloxPlugin = { search: async (query, page, pageSize, host) => {
+            if (query === 'write') await host.storage.set('reinstall', 'preserved');
+            return {items:[],page,pageSize,hasMore:false,stored:await host.storage.get('reinstall')};
+        }};"""
+        fun archive(version: String, script: String = storageScript): ByteArray {
             val out = java.io.ByteArrayOutputStream()
             java.util.zip.ZipOutputStream(out).use { zip ->
-                mapOf("manifest.json" to """{"id":"org.melox.rc.lifecycle","name":"RC","version":"$version","apiVersion":1,"entry":"index.js","capabilities":[]}""",
+                mapOf("manifest.json" to """{"id":"org.melox.rc.lifecycle","name":"RC","version":"$version","apiVersion":1,"entry":"index.js","capabilities":["search"]}""",
                     "index.js" to script).forEach { (name, content) -> zip.putNextEntry(java.util.zip.ZipEntry(name)); zip.write(content.toByteArray()); zip.closeEntry() }
             }
             return out.toByteArray()
@@ -136,9 +141,16 @@ class PluginRcDeviceRunner : Instrumentation() {
                 PluginManager.LoadedProvider(PluginMusicProvider(pkg.manifest, runtime), runtime)
             } catch (error: Throwable) { runtime.close(); throw error }
         }
+        fun stored(query: String): String = runBlocking {
+            val args = JSONArray().put(query).put(1).put(10)
+            PluginRuntime(sandbox, requireNotNull(store.read(source))).use { runtime ->
+                org.json.JSONObject(runtime.invoke("search", args)).getString("stored")
+            }
+        }
         try {
             PluginManager(store, registry, factory).use { manager ->
                 manager.install(archive("1.0.0")); manager.enable(source)
+                check(stored("write") == "preserved")
                 val active = registry[source]
                 check(runCatching { manager.update(source, archive("2.0.0", "throw new Error('fixture');")) }.isFailure)
                 check(registry[source] === active && store.read(source)?.manifest?.version == "1.0.0")
@@ -158,8 +170,13 @@ class PluginRcDeviceRunner : Instrumentation() {
                 restored.install(archive("2.0.0")); check(source !in store.enabledSources())
                 restored.uninstall(source); check(store.read(source) == null)
                 check(store.publisherFingerprint(source) == PluginPackageTrust.UNSIGNED)
+                check(PluginStorage(sandbox, source).execute("storage.get", "reinstall") == "preserved")
+                restored.install(archive("2.0.0"))
+                check(registry[source] == null)
+                restored.enable(source)
+                check(registry[source]?.sourceId == source && stored("read") == "preserved")
             }
-            evidence += "PASS package install/enable/update, failed candidate rollback, restart restore, AtomicFile backup, quarantine/reimport, uninstall and retained trust"
+            evidence += "PASS package install/enable/update, failed candidate rollback, restart restore, AtomicFile backup, quarantine/reimport, uninstall, reinstall, retained trust and plugin storage"
         } finally { root.deleteRecursively() }
     }
 
