@@ -17,7 +17,7 @@ internal object PluginRcCatalogChecks {
         val fixture = File(test.targetContext.cacheDir, "plugin-rc-catalog.melox-plugin")
         require(fixture.length() in 1..4 * 1024 * 1024)
         val pkg = PluginArchiveReader.read(fixture.readBytes())
-        require(pkg.manifest.sourceId.value == "plugin:org.melox.catalog-demo" && pkg.manifest.capabilities.size == 12 && pkg.integrityChecked && pkg.publisher != null)
+        require(pkg.manifest.sourceId.value == "plugin:org.melox.catalog-demo" && PluginCapability.PlaylistWrite in pkg.manifest.capabilities && pkg.integrityChecked && pkg.publisher != null)
         val root = File(test.targetContext.cacheDir, "plugin-rc-catalog-${UUID.randomUUID()}").apply { mkdirs() }
         val sandbox = object : ContextWrapper(test.targetContext) {
             override fun getApplicationContext(): Context = this
@@ -46,7 +46,12 @@ internal object PluginRcCatalogChecks {
                 check(provider.rankingTracks(ranking, 1, 10).items.single().id == track.id)
                 provider.homeFeed(1, 1, 1)
                 check(provider.accountSummary() == null)
-                check(provider.userPlaylists(1, 10).items.single().id == playlist.id)
+                val writable = provider.writablePlaylists(1, 10).items.single()
+                check(writable.isEditable == true && writable.id != playlist.id)
+                check(provider.userPlaylists(1, 10).items.map { it.id }.toSet() == setOf(playlist.id, writable.id))
+                check(provider.playlistDetail(writable, 1, 10).tracks.isEmpty())
+                provider.addTrackToPlaylist(track, writable)
+                check(provider.playlistDetail(writable, 1, 10).tracks.single().id == track.id)
                 check(provider.savedAlbums(1, 10).items.single().id == album.id)
                 check(provider.followedArtists(1, 10).items.single().id == artist.id)
                 check(!provider.isFavorite(track)); provider.setFavorite(track, true)
@@ -54,7 +59,7 @@ internal object PluginRcCatalogChecks {
                 check(!provider.isFavorite(track))
                 check(provider.authenticationStatus() == MusicAuthenticationState.NotRequired)
             }
-            evidence += "PASS SDK catalog archive integrity/signature, all 12 Capability Provider paths through isolated QuickJS, collections/details/pagination and cross-context favorite writes (not full UI/OAuth/download bytes)"
+            evidence += "PASS SDK catalog archive integrity/signature, catalog Provider paths including playlist writes through isolated QuickJS, collections/details/pagination and cross-context favorite writes (not full UI/OAuth/download bytes)"
         } finally { root.deleteRecursively(); fixture.delete() }
     }
 }

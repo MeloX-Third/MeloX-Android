@@ -28,7 +28,7 @@ data class PluginManifest(
                 PluginCapability.Search, PluginCapability.Playback, PluginCapability.Lyrics,
                 PluginCapability.Playlists, PluginCapability.Albums, PluginCapability.Artists,
                 PluginCapability.Rankings, PluginCapability.HomeFeed, PluginCapability.UserLibrary,
-                PluginCapability.Favorites,
+                PluginCapability.Favorites, PluginCapability.PlaylistWrite,
             )
         }
 }
@@ -40,6 +40,7 @@ data class PluginOAuthConfiguration(val authorizationEndpoint: String, val token
 enum class PluginCapability(val wireName: String, val methods: Set<String>) {
     Search("search", setOf("search")), Playback("playback", setOf("resolvePlayback")), Lyrics("lyrics", setOf("lyrics")),
     Playlists("playlists", setOf("playlists", "searchPlaylists", "playlistDetail")),
+    PlaylistWrite("playlistWrite", setOf("writablePlaylists", "addTrackToPlaylist")),
     Albums("albums", setOf("searchAlbums", "albumDetail")),
     Artists("artists", setOf("searchArtists", "artistDetail")),
     Rankings("rankings", setOf("rankings", "rankingTracks")),

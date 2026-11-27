@@ -61,6 +61,37 @@ class PluginCatalogProviderTest {
         assertEquals(0, calls)
     }
 
+    @Test fun playlistWriteUsesOnlySourceLocalWritablePlaylists() = runBlocking {
+        val calls = mutableListOf<String>()
+        val manifest = PluginManifest(source, "Catalog", "1.0.0", 1, "index.js",
+            setOf(PluginCapability.PlaylistWrite), emptySet())
+        val plugin = PluginMusicProvider(manifest, PluginInvoker { method, args ->
+            calls.add(method)
+            when (method) {
+                "writablePlaylists" -> page("""{"id":"folder/playlist:1","title":"Playlist"}""")
+                "addTrackToPlaylist" -> {
+                    assertEquals("track/1", args.getJSONObject(0).getString("id"))
+                    assertEquals("folder/playlist:1", args.getString(1))
+                    "null"
+                }
+                else -> error(method)
+            }
+        })
+        val playlist = plugin.writablePlaylists(1, 30).items.single()
+        val song = MusicTrack(MusicResourceId(source, "track/1"), "Test", listOf(MusicArtistRef(name = "Author")))
+        assertEquals(source, playlist.id.sourceId)
+        assertEquals(true, playlist.isEditable)
+        plugin.addTrackToPlaylist(song, playlist)
+
+        val foreignId = MusicResourceId(MusicSource.Netease, playlist.id.value)
+        assertTrue(runCatching { plugin.addTrackToPlaylist(song, playlist.copy(id = foreignId)) }.isFailure)
+        assertTrue(runCatching { plugin.addTrackToPlaylist(song, playlist.copy(isEditable = false)) }.isFailure)
+        assertTrue(runCatching { plugin.addTrackToPlaylist(song.copy(id = foreignId), playlist) }.isFailure)
+        val readOnly = provider(setOf(PluginCapability.Playlists)) { throw AssertionError("unexpected script call") }
+        assertTrue(runCatching { readOnly.addTrackToPlaylist(song, playlist) }.exceptionOrNull() is IllegalArgumentException)
+        assertEquals(listOf("writablePlaylists", "addTrackToPlaylist"), calls)
+    }
+
     @Test fun favoritesRequireBooleanStateAndVoidAcknowledgement() = runBlocking {
         var favorite = false
         val plugin = provider { method -> when (method) {

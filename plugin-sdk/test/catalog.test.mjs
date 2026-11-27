@@ -75,6 +75,20 @@ test("catalog favorites are scoped through host storage and writes persist", asy
   assert.equal(await plugin.isFavorite(track, host), false);
 });
 
+test("catalog playlist writes persist across fresh contexts and reject read-only playlists", async () => {
+  const plugin = await load("catalog"), values = new Map();
+  const host = { storage: { get: async key => values.get(key) ?? null, set: async (key, value) => { values.set(key, value); } } };
+  const { items } = await plugin.writablePlaylists(1, 30, host);
+  assert.equal(items.length, 1);
+  const [playlist] = items;
+  const track = { id: "tone-440hz" };
+  assert.equal((await plugin.playlistDetail(playlist.id, 1, 30, host)).tracks.total, 0);
+  await assert.rejects(() => plugin.addTrackToPlaylist(track, "signals", host), { code: "NOT_FOUND" });
+  assert.equal(await plugin.addTrackToPlaylist(track, playlist.id, host), undefined);
+  const restored = await load("catalog");
+  assert.equal((await restored.playlistDetail(playlist.id, 1, 30, host)).tracks.items[0].id, track.id);
+});
+
 test("resolver template handles a foreign track through the UNM /match contract", async () => {
   const plugin = await load("resolver");
   const requests = [];

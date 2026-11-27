@@ -61,6 +61,9 @@ internal object PluginRcWireChecks {
                 check(playlist.description == "Description" && playlist.creatorName == "Creator")
                 check(provider.searchPlaylists("Playlist", 1, 10).items.single().id == playlist.id)
                 check(provider.playlistDetail(playlist, 1, 10).tracks.single().id == track.id)
+                val writable = provider.writablePlaylists(1, 10).items.single()
+                check(writable.id == playlist.id && writable.isEditable == true)
+                provider.addTrackToPlaylist(track, writable)
                 val album = provider.searchAlbums("Album", 1, 10).items.single()
                 check(album.releaseDate == "2026-11-05" && album.artists.single().id?.value == "artist")
                 check(provider.albumDetail(album, 1, 10).tracks.single().id == track.id)
@@ -83,7 +86,7 @@ internal object PluginRcWireChecks {
                 val lyric = provider.lyrics(track).lines.single()
                 check(lyric.text == "Text" && lyric.translation == "Translation" && lyric.romanization == "Romanization")
             }
-            evidence += "PASS shared full-field fixture: all API-v1 methods preserve raw fields through isolated QuickJS and all 12 Capability Provider mappings execute (not UI/network acceptance)"
+            evidence += "PASS shared full-field fixture: all API-v1 methods preserve raw fields through isolated QuickJS and catalog, playlist write and playback Provider mappings execute (not UI/network acceptance)"
         } finally { vault.clear(); root.deleteRecursively(); file.delete() }
     }
 

@@ -12,13 +12,13 @@ internal object PluginWireContract {
         PluginJson.check(raw)
         when (method) {
             "isFavorite" -> { require(raw.trim() in setOf("true", "false")); return }
-            "setFavorite" -> { require(raw.trim() == "null"); return }
+            "setFavorite", "addTrackToPlaylist" -> { require(raw.trim() == "null"); return }
             "accountSummary" -> if (raw.trim() == "null") return
         }
         val value = JSONObject(raw)
         when (method) {
             "search", "rankingTracks" -> page(value, ::track)
-            "playlists", "searchPlaylists", "userPlaylists" -> page(value, ::playlist)
+            "playlists", "searchPlaylists", "userPlaylists", "writablePlaylists" -> page(value, ::playlist)
             "searchAlbums", "savedAlbums" -> page(value, ::album)
             "searchArtists", "followedArtists" -> page(value, ::artist)
             "rankings" -> page(value, ::ranking)

@@ -31,6 +31,12 @@ test token; `examples/resolver` demonstrates a resolver for a foreign NetEase tr
 using a UNM-compatible `/match` service. See [catalog/authentication integration](../docs/plugin-system/05-capabilities-and-authentication.md)
 for method signatures, account management, OAuth2/PKCE setup and limits.
 
+Plugins that declare `playlistWrite` supply `writablePlaylists(page, pageSize, host)` and
+`addTrackToPlaylist(track, playlistId, host)`. List only playlists the active account can
+edit. Use the playlist's source-local ID and resolve without a value after a successful
+write. Propagate upstream refusal as a plugin error. This capability requires a host
+that recognizes `playlistWrite`.
+
 ## Build a plugin
 
 Node.js 20+ is recommended. From this directory:

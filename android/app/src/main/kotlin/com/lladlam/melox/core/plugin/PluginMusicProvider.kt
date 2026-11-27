@@ -13,7 +13,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
     MusicProvider, SearchCapability, PlaybackCapability, LyricsCapability, CatalogSearchCapability,
     PlaylistCapability, AlbumCapability, ArtistCapability, RankingCatalogCapability, HomeFeedCapability,
     UserLibraryCapability, LibraryCollectionCapability, FavoriteStateCapability, AuthenticationCapability, DownloadCapability,
-    FallbackPlaybackCapability {
+    FallbackPlaybackCapability, PlaylistWriteCapability {
     override val sourceId = manifest.sourceId
     override val displayName = manifest.name
     override val capabilities = manifest.capabilities.mapTo(mutableSetOf()) {
@@ -22,6 +22,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
             PluginCapability.Playback -> MusicCapability.Playback
             PluginCapability.Lyrics -> MusicCapability.Lyrics
             PluginCapability.Playlists -> MusicCapability.Playlists
+            PluginCapability.PlaylistWrite -> MusicCapability.PlaylistWrite
             PluginCapability.Albums -> MusicCapability.Albums
             PluginCapability.Artists -> MusicCapability.Artists
             PluginCapability.Rankings -> MusicCapability.Rankings
@@ -64,6 +65,18 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
 
     suspend fun playlists(page: Int = 1, pageSize: Int = 30) = codec.page(
         catalogPage(PluginCapability.Playlists, "playlists", null, page, pageSize), page, pageSize, codec::playlist)
+    override suspend fun writablePlaylists(page: Int, pageSize: Int): MusicPage<MusicPlaylistSummary> = codec.page(
+        catalogPage(PluginCapability.PlaylistWrite, "writablePlaylists", null, page, pageSize), page, pageSize,
+    ) { value -> codec.playlist(value).copy(isEditable = true) }
+
+    override suspend fun addTrackToPlaylist(track: MusicTrack, playlist: MusicPlaylistSummary) {
+        checkTrack(track)
+        require(playlist.id.sourceId == sourceId && playlist.isEditable == true) { "playlist is not writable for this source" }
+        require(playlist.id.value.toByteArray(Charsets.UTF_8).size <= 4096 &&
+            track.id.value.toByteArray(Charsets.UTF_8).size <= 4096) { "resource id too large" }
+        call(PluginCapability.PlaylistWrite, "addTrackToPlaylist", trackJson(track), playlist.id.value)
+    }
+
     override suspend fun searchPlaylists(query: String, page: Int, pageSize: Int) = codec.page(
         catalogPage(PluginCapability.Playlists, "searchPlaylists", query, page, pageSize), page, pageSize, codec::playlist)
     override suspend fun searchAlbums(query: String, page: Int, pageSize: Int) = codec.page(

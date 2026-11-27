@@ -17,6 +17,7 @@
     "playlistDetail":"playlistDetail", "albumDetail":"albumDetail", "artistDetail":"artistDetail",
     "homeFeed":"homeFeed", "accountSummary":"accountSummary", "authenticationStatus":"authenticationStatus",
     "resolvePlayback":"playbackResolution", "resolveDownload":"playbackResolution", "resolveFallback":"playbackResolution", "lyrics":"lyrics",
-    "isFavorite":"favoriteState", "setFavorite":"writeAcknowledgement"
+    "isFavorite":"favoriteState", "setFavorite":"writeAcknowledgement",
+    "writablePlaylists":"playlistPage", "addTrackToPlaylist":"writeAcknowledgement"
   }
 }

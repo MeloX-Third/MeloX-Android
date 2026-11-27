@@ -4,6 +4,8 @@ import tone from "../test-tone/index.js";
 // An owned, synthetic CC0 catalog, not an emulation of any third-party service.
 const track: MusicTrack = { id: "tone-440hz", title: "MeloX 440 Hz Test Tone", artists: [{ id: "author", name: "MeloX SDK Example" }], durationMs: 250 };
 const playlist = { id: "signals", title: "CC0 Test Signals", creatorName: "MeloX SDK", trackCount: 1 };
+const writable = { id: "saved-signals", title: "Saved Test Signals", creatorName: "MeloX SDK" };
+const savedSignalKey = "playlist.saved-signals.tone-440hz";
 const album = { id: "signal-album", title: "Test Signals", artists: track.artists, trackCount: 1 };
 const artist = { id: "author", name: "MeloX SDK Example", songCount: 1, albumCount: 1 };
 const ranking = { id: "signal-ranking", title: "Test Signal Ranking" };
@@ -18,7 +20,20 @@ export default definePlugin({
   async resolveDownload(requested) { return tone.resolvePlayback(requested); },
   async playlists(page, pageSize) { return pageOf([playlist], page, pageSize); },
   async searchPlaylists(query, page, pageSize) { return pageOf(playlist.title.toLowerCase().includes(query.toLowerCase()) ? [playlist] : [], page, pageSize); },
-  async playlistDetail(id, page, pageSize) { checkId(id, playlist.id); return { summary: playlist, tracks: pageOf([track], page, pageSize) }; },
+  async playlistDetail(id, page, pageSize, host) {
+    if (id === writable.id) {
+      const tracks = (await host.storage.get(savedSignalKey)) === "true" ? [track] : [];
+      return { summary: { ...writable, trackCount: tracks.length }, tracks: pageOf(tracks, page, pageSize) };
+    }
+    checkId(id, playlist.id);
+    return { summary: playlist, tracks: pageOf([track], page, pageSize) };
+  },
+  async writablePlaylists(page, pageSize) { return pageOf([writable], page, pageSize); },
+  async addTrackToPlaylist(requested, playlistId, host) {
+    checkId(requested.id, track.id);
+    checkId(playlistId, writable.id);
+    await host.storage.set(savedSignalKey, "true");
+  },
   async searchAlbums(query, page, pageSize) { return pageOf(album.title.toLowerCase().includes(query.toLowerCase()) ? [album] : [], page, pageSize); },
   async albumDetail(id, page, pageSize) { checkId(id, album.id); return { summary: album, tracks: pageOf([track], page, pageSize) }; },
   async searchArtists(query, page, pageSize) { return pageOf(artist.name.toLowerCase().includes(query.toLowerCase()) ? [artist] : [], page, pageSize); },
@@ -30,7 +45,7 @@ export default definePlugin({
   },
   // This demo library is local to the plugin, so no platform account is necessary.
   async accountSummary() { return null; },
-  async userPlaylists(page, pageSize) { return pageOf([playlist], page, pageSize); },
+  async userPlaylists(page, pageSize) { return pageOf([playlist, writable], page, pageSize); },
   async savedAlbums(page, pageSize) { return pageOf([album], page, pageSize); },
   async followedArtists(page, pageSize) { return pageOf([artist], page, pageSize); },
   async isFavorite(requested, host) { return (await host.storage.get(`favorite.${requested.id}`)) === "true"; },

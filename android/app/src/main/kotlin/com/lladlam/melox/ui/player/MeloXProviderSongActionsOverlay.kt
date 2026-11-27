@@ -126,7 +126,9 @@ internal fun MeloXProviderSongActionsOverlay(
         identity.sourceId.builtIn != null || provider.supports(com.lladlam.melox.core.music.provider.MusicCapability.Download)
     }
     val downloadStore = remember { MeloXProviderDownloadStore.get(context) }
-    val playlistWriteCapability = provider as? PlaylistWriteCapability
+    val playlistWriteCapability = (provider as? PlaylistWriteCapability)?.takeIf {
+        identity.sourceId.builtIn != null || provider.supports(com.lladlam.melox.core.music.provider.MusicCapability.PlaylistWrite)
+    }
     val playlistSyncCapability = provider as? PlaylistSyncCapability
     val accountManager = remember { ProviderAccountManager(context) }
     val providerLoggedIn = remember(identity.sourceId, visible, generation) {
@@ -155,11 +157,11 @@ internal fun MeloXProviderSongActionsOverlay(
     var page by androidx.compose.runtime.saveable.rememberSaveable(identity, visible) { mutableStateOf(ProviderSongActionPage.Main) }
     var favoriteKnownState by remember(identity) { mutableStateOf<Boolean?>(null) }
     var favoriteWorking by remember(identity) { mutableStateOf(false) }
-    var writablePlaylists by remember(identity) { mutableStateOf<List<MusicPlaylistSummary>>(emptyList()) }
+    var writablePlaylists by remember(identity, provider) { mutableStateOf<List<MusicPlaylistSummary>>(emptyList()) }
     var showCreatePlaylist by remember(identity, visible, page) { mutableStateOf(false) }
     var newPlaylistName by androidx.compose.runtime.saveable.rememberSaveable(identity, visible, page) { mutableStateOf("") }
-    var playlistsLoading by remember(identity) { mutableStateOf(false) }
-    var playlistWriteWorking by remember(identity) { mutableStateOf(false) }
+    var playlistsLoading by remember(identity, provider) { mutableStateOf(false) }
+    var playlistWriteWorking by remember(identity, provider) { mutableStateOf(false) }
     var actionStatus by remember(identity) { mutableStateOf<String?>(null) }
     var actionError by remember(identity) { mutableStateOf<String?>(null) }
     var recognitionWorking by remember(identity) { mutableStateOf(false) }
@@ -350,6 +352,7 @@ internal fun MeloXProviderSongActionsOverlay(
                                         symbol = "＋",
                                         enabled = providerLoggedIn && !playlistsLoading,
                                     ) {
+                                        if (playlistsLoading || registry[identity.sourceId] !== provider) return@ProviderActionItem
                                         page = ProviderSongActionPage.Playlists
                                         playlistsLoading = true
                                         actionStatus = null
@@ -362,11 +365,16 @@ internal fun MeloXProviderSongActionsOverlay(
                                                     }
                                                 }
                                             }.onSuccess { playlists ->
-                                                writablePlaylists = playlists
-                                                if (playlists.isEmpty()) actionError = context.getString(R.string.player_no_user_playlists)
+                                                if (registry[identity.sourceId] === provider) {
+                                                    writablePlaylists = playlists
+                                                    if (playlists.isEmpty()) actionError = context.getString(R.string.player_no_user_playlists)
+                                                }
                                             }.onFailure { failure ->
-                                                writablePlaylists = emptyList()
-                                                actionError = failure.message ?: context.getString(R.string.player_writable_playlists_failed)
+                                                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                                                if (registry[identity.sourceId] === provider) {
+                                                    writablePlaylists = emptyList()
+                                                    actionError = failure.message ?: context.getString(R.string.player_writable_playlists_failed)
+                                                }
                                             }
                                             playlistsLoading = false
                                         }
@@ -459,6 +467,7 @@ internal fun MeloXProviderSongActionsOverlay(
                                             enabled = !playlistWriteWorking,
                                         ) {
                                             val capability = playlistWriteCapability ?: return@ProviderActionItem
+                                            if (playlistWriteWorking || registry[identity.sourceId] !== provider) return@ProviderActionItem
                                             playlistWriteWorking = true
                                             actionError = null
                                             actionStatus = null
@@ -466,10 +475,15 @@ internal fun MeloXProviderSongActionsOverlay(
                                                 runCatching {
                                                     capability.addTrackToPlaylist(actionTrack, playlist)
                                                 }.onSuccess {
-                                                    actionStatus = context.getString(R.string.player_added_to_playlist, playlist.title)
-                                                    page = ProviderSongActionPage.Main
+                                                    if (registry[identity.sourceId] === provider) {
+                                                        actionStatus = context.getString(R.string.player_added_to_playlist, playlist.title)
+                                                        page = ProviderSongActionPage.Main
+                                                    }
                                                 }.onFailure { failure ->
-                                                    actionError = failure.message ?: context.getString(R.string.player_add_playlist_failed)
+                                                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                                                    if (registry[identity.sourceId] === provider) {
+                                                        actionError = failure.message ?: context.getString(R.string.player_add_playlist_failed)
+                                                    }
                                                 }
                                                 playlistWriteWorking = false
                                             }
