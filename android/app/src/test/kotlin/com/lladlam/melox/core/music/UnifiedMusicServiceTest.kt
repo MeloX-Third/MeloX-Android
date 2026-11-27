@@ -130,6 +130,21 @@ class UnifiedMusicServiceTest {
         assertEquals("", registry.playbackCacheKey(com.lladlam.melox.core.music.model.SourceId.fromBuiltIn(MusicSource.QQMusic)))
     }
 
+    @Test fun registrySupportsAPluginWithoutBuiltInSources() {
+        val registry = MusicProviderRegistry(emptyList())
+        val id = com.lladlam.melox.core.music.model.SourceId.parse("plugin:org.example.only-source")!!
+        val provider = object : MusicProvider {
+            override val sourceId = id
+            override val displayName = "Only source"
+            override val capabilities = emptySet<MusicCapability>()
+        }
+        assertTrue(registry.providers.isEmpty())
+        registry.registerDynamic(provider)
+        assertEquals(provider, registry.require(id))
+        assertTrue(registry.unregisterDynamic(id))
+        assertEquals(null, registry[id])
+    }
+
     private class FakeSearchProvider(
         override val source: MusicSource,
         private val calls: MutableList<MusicSource>,

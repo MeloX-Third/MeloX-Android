@@ -293,10 +293,6 @@ class MusicProviderRegistry(
         }
     }
 
-    init {
-        require(providersBySource.isNotEmpty()) { "at least one music provider is required" }
-    }
-
     val providers: List<MusicProvider>
         get() = providersBySource.values.toList()
 
