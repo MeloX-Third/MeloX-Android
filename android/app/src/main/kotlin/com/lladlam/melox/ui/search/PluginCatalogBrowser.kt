@@ -59,9 +59,9 @@ private fun PluginCatalogContent(
     var accountName by rememberSaveable(sourceValue) { mutableStateOf<String?>(null) }
     var loadedRequest by rememberRetainedPageState(sourceValue) { mutableStateOf<List<Any?>?>(null) }
     val scope = rememberCoroutineScope()
-    var revision by remember { mutableIntStateOf(0) }
-    var editablePlaylist by remember(collection, page, revision) { mutableStateOf<MusicPlaylistSummary?>(null) }
-    var members by remember(collection, page, revision) { mutableStateOf<List<Pair<String, MusicTrack>>>(emptyList()) }
+    var revision by rememberSaveable(sourceValue, generation) { mutableIntStateOf(0) }
+    var editablePlaylist by rememberRetainedPageState(sourceValue, generation, collection, page, revision) { mutableStateOf<MusicPlaylistSummary?>(null) }
+    var members by rememberRetainedPageState(sourceValue, generation, collection, page, revision) { mutableStateOf<List<Pair<String, MusicTrack>>>(emptyList()) }
     var reorderOpen by remember(collection, page) { mutableStateOf(false) }
     var reorderError by remember(collection, page) { mutableStateOf<String?>(null) }
     var removeOpen by remember(collection, page) { mutableStateOf(false) }
@@ -103,6 +103,9 @@ private fun PluginCatalogContent(
     LaunchedEffect(sourceValue, query, generation, section, collection, page, revision) {
         val requestKey = listOf(sourceValue, query, generation, section, collection, page, revision)
         if (loadedRequest == requestKey) return@LaunchedEffect
+        loadedRequest = null
+        editablePlaylist = null
+        members = emptyList()
         rows = emptyList(); tracks = emptyList(); error = null; hasMore = false; accountName = null
         if (provider == null) { error = "音源已禁用或卸载：$sourceValue"; return@LaunchedEffect }
         if (sections.none { it.first == section }) return@LaunchedEffect
