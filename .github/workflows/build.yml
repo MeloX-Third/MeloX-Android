@@ -44,6 +44,17 @@ jobs:
             android/app/src/test/cpp/usb_audio_test.cpp -o "$RUNNER_TEMP/melox-usb-audio-test"
           "$RUNNER_TEMP/melox-usb-audio-test"
 
+      - name: Test music source migration
+        working-directory: android
+        run: |
+          bash ./gradlew :app:testDebugUnitTest --no-daemon --max-workers=2 --stacktrace \
+            --tests '*PluginCatalogProviderTest' \
+            --tests '*PluginProtocolContractTest' \
+            --tests '*PluginWireFieldsTest' \
+            --tests '*PluginManagerTest' \
+            --tests '*UnifiedMusicServiceTest' \
+            --tests '*MusicProviderArchitectureTest'
+
       - name: Build debug APK
         run: |
           chmod +x android/gradlew
