@@ -51,9 +51,20 @@ class PluginManagerTest {
         restored.disable(id)
         assertNull(playback[id])
         assertTrue(repository.enabledSources().isEmpty())
+        val savedTrack = MusicTrack(MusicResourceId(id, "track/1"), "Saved track", listOf(MusicArtistRef(name = "Artist")))
+        val storedTrack = MeloXTrackJson.encode(savedTrack)
         restored.uninstall(id)
         assertNull(repository.read(id))
+        val missingTrack = requireNotNull(MeloXTrackJson.decode(storedTrack))
+        assertEquals(savedTrack.id, missingTrack.id)
+        assertNull(playback[missingTrack.id.sourceId])
         assertSame(builtin, playback[MusicSource.Netease])
+
+        restored.install(archive("1.1.0"))
+        assertNull(playback[missingTrack.id.sourceId])
+        restored.enable(id)
+        assertEquals(id, playback[missingTrack.id.sourceId]?.sourceId)
+        assertSame(ui[id], playback[id])
         restored.close()
     }
 
