@@ -11,8 +11,7 @@ import com.lladlam.melox.core.provider.applemusic.AppleMusicSessionStore
 import com.lladlam.melox.core.provider.kugou.KugouLiteProvider
 import com.lladlam.melox.core.provider.kugou.KugouProvider
 import com.lladlam.melox.core.provider.kugou.KugouSessionStore
-import com.lladlam.melox.core.provider.kuwo.KuwoProvider
-import com.lladlam.melox.core.provider.kuwo.KuwoSessionStore
+import com.lladlam.melox.core.provider.kuwo.KuwoProviderRegistration
 import com.lladlam.melox.core.provider.netease.NeteaseProvider
 import com.lladlam.melox.core.provider.qqmusic.QQMusicProvider
 import com.lladlam.melox.core.provider.qqmusic.QQMusicSessionStore
@@ -61,7 +60,7 @@ object MeloXMusicProviders {
                 KugouProvider({ PlaybackAccountStore.kugouSession(appContext) }, httpClient),
                 liteProvider(appContext, httpClient),
                 QishuiProvider({ QishuiSessionStore.read(appContext) }, httpClient),
-                KuwoProvider({ PlaybackAccountStore.kuwoSession(appContext) }, httpClient),
+                KuwoProviderRegistration.create(appContext, httpClient, forPlayback = true),
                 AppleMusicApiClient({ AppleMusicSessionStore.read(appContext) }, httpClient),
                 BilibiliProvider(
                     { BilibiliSessionStore.read(appContext) }, httpClient,
@@ -149,7 +148,7 @@ object MeloXMusicProviders {
                 ),
                 liteProvider(context, httpClient),
                 QishuiProvider({ QishuiSessionStore.read(context) }, httpClient),
-                KuwoProvider({ KuwoSessionStore.read(context) }, httpClient),
+                KuwoProviderRegistration.create(context, httpClient),
                 AppleMusicApiClient(
                     sessionProvider = { AppleMusicSessionStore.read(context) },
                     httpClient = httpClient,
