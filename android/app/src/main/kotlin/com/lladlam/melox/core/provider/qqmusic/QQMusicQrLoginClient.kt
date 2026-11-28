@@ -56,6 +56,8 @@ internal data class QQMusicQrCredential(
     val unionId: String,
     val encryptedUin: String,
     val loginType: Int,
+    val refreshKey: String = "",
+    val expiresAt: String = "",
 )
 
 enum class QQMusicQrLoginMethod {
@@ -537,6 +539,8 @@ internal fun parseQQMusicQrCredential(data: JSONObject): QQMusicQrCredential = Q
     unionId = data.optString("unionid"),
     encryptedUin = data.optString("encryptUin"),
     loginType = data.optInt("loginType", data.optInt("login_type", 0)),
+    refreshKey = data.optString("refresh_key"),
+    expiresAt = data.optString("expired_at"),
 )
 
 internal fun buildQQMusicQrCredentialCookie(credential: QQMusicQrCredential): String {
@@ -556,6 +560,8 @@ internal fun buildQQMusicQrCredentialCookie(credential: QQMusicQrCredential): St
         "psrf_qqrefresh_token" to credential.refreshToken,
         "psrf_qqunionid" to credential.unionId,
         "euin" to credential.encryptedUin,
+        "qm_refresh_key" to credential.refreshKey,
+        "psrf_access_token_expiresAt" to credential.expiresAt,
     ).filter { (_, value) -> value.isNotBlank() && value.none { it == ';' || it == '\r' || it == '\n' } }
         .joinToString("; ") { (key, value) -> "$key=$value" }
 }

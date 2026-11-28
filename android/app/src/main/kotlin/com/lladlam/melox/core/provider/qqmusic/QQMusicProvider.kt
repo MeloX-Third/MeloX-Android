@@ -36,6 +36,7 @@ import okhttp3.OkHttpClient
 class QQMusicProvider(
     sessionProvider: () -> QQMusicSession = { QQMusicSession("", "", "") },
     httpClient: OkHttpClient = com.lladlam.melox.core.network.MeloXHttpClient.shared,
+    saveRefreshedSession: ((QQMusicSession, QQMusicSession) -> Boolean)? = null,
 ) : MusicProvider,
     SearchCapability,
     CatalogSearchCapability,
@@ -64,33 +65,39 @@ class QQMusicProvider(
         MusicCapability.Rankings,
     )
 
+    private val authenticatedClient = if (saveRefreshedSession == null) httpClient else {
+        httpClient.newBuilder().addInterceptor(
+            QQMusicCredentialInterceptor(httpClient, sessionProvider, saveRefreshedSession),
+        ).build()
+    }
+
     private val api = QQMusicApiClient(
         sessionProvider = sessionProvider,
-        httpClient = httpClient,
+        httpClient = authenticatedClient,
     )
     private val richLyrics = QQMusicRichLyricsClient(
         sessionProvider = sessionProvider,
-        httpClient = httpClient,
+        httpClient = authenticatedClient,
     )
     private val playback = QQMusicPlaybackVkeyClient(
         sessionProvider = sessionProvider,
-        httpClient = httpClient,
+        httpClient = authenticatedClient,
     )
     private val favorites = QQMusicFavoriteClient(
         sessionProvider = sessionProvider,
-        httpClient = httpClient,
+        httpClient = authenticatedClient,
     )
     private val playlists = QQMusicPlaylistClient(
         sessionProvider = sessionProvider,
-        httpClient = httpClient,
+        httpClient = authenticatedClient,
     )
     private val rankings = QQMusicRankingClient(
         sessionProvider = sessionProvider,
-        httpClient = httpClient,
+        httpClient = authenticatedClient,
     )
     private val catalog = QQMusicCatalogClient(
         sessionProvider = sessionProvider,
-        httpClient = httpClient,
+        httpClient = authenticatedClient,
     )
 
     override suspend fun searchSongs(query: String, page: Int, pageSize: Int): MusicPage<MusicTrack> =

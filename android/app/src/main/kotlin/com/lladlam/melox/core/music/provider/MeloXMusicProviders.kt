@@ -121,6 +121,7 @@ object MeloXMusicProviders {
                     if (forPlayback) PlaybackAccountStore.qqSession(context) else QQMusicSessionStore.read(context)
                 },
                 httpClient = httpClient,
+                saveRefreshedSession = { old, next -> QQMusicSessionStore.replaceIfCurrent(context, old, next) },
             ))
             if (forPlayback) add(KugouProvider({ PlaybackAccountStore.kugouSession(context) }, httpClient))
             add(liteProvider(context, httpClient))
