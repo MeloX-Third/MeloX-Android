@@ -233,16 +233,18 @@ internal fun MeloXNowPlayingCoreControls(
         )
         Spacer(Modifier.height(transportGap))
         SceneTransportControls(state, compact = compact)
-        // ★ 车机档跳过音量条：高度预算全让给封面（见 [MeloXCarHeadUnitControlsHeight]）。
-        // 2026-11-24: 添加用户设置开关检查（Issue #132）
-        if (!carHeadUnit && MeloXSettingsRuntime.showVolumeSlider) {
+        if (!carHeadUnit) {
             Spacer(Modifier.height(volumeGap))
-            SceneVolumeControl(
-                state,
-                Modifier.padding(horizontal = barsInset),
-                compact = compact,
-                useVectorGlyphs = useVectorGlyphs,
-            )
+            if (MeloXSettingsRuntime.showVolumeSlider) {
+                SceneVolumeControl(
+                    state,
+                    Modifier.padding(horizontal = barsInset),
+                    compact = compact,
+                    useVectorGlyphs = useVectorGlyphs,
+                )
+            } else {
+                Spacer(Modifier.height(MeloXVolumeRowHeight))
+            }
         }
         if (showPageSelector) {
             Spacer(Modifier.height(3.dp))
@@ -1305,6 +1307,8 @@ private const val STRETCH_EXTRA_H = 5f
 /** 边界拉长时单侧的外鼓量（dp）：`extra = s · STRETCH_EXTRA_W`。 */
 private const val STRETCH_EXTRA_W = 13f
 
+internal val MeloXVolumeRowHeight = 42.dp
+
 @Composable
 private fun SceneVolumeControl(
     state: MeloXPlaybackUiState,
@@ -1635,7 +1639,7 @@ private fun SceneVolumeControl(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp)
+            .height(MeloXVolumeRowHeight)
             // ★ 音量区内的**竖直**拖拽必须在本层吃掉，不能冒泡到页面级「下拉收起」
             //   （2026-10-07 用户报障，完整根因见函数注释）。
             .meloXVolumeAreaBlocksPageCollapse()

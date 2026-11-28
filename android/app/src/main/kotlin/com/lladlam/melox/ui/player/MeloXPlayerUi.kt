@@ -1571,7 +1571,11 @@ private fun MeloXBottomControls(
         Spacer(Modifier.height(19.dp))
         MeloXTransportControls(state)
         Spacer(Modifier.height(31.dp))
-        if (MeloXSettingsRuntime.showVolumeSlider) MeloXVolumeControl(state)
+        if (MeloXSettingsRuntime.showVolumeSlider) {
+            MeloXVolumeControl(state)
+        } else {
+            Spacer(Modifier.height(MeloXVolumeRowHeight))
+        }
         Spacer(Modifier.height(3.dp))
         MeloXPageSelector(
             state = state,
@@ -1718,7 +1722,7 @@ private fun MeloXVolumeControl(state: MeloXPlaybackUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(42.dp)
+            .height(MeloXVolumeRowHeight)
             // ★ 整行一体缩放：滑块与两侧喇叭同步放大，静止态逐像素不变。
             .meloXSliderPressVisual(pressScale),
         verticalAlignment = Alignment.CenterVertically,
