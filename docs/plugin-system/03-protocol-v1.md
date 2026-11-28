@@ -133,3 +133,9 @@ UI 按声明隐藏未提供的栏目和操作。全部平台字段转换依然�
 控件类型为 `toggle`、`singleChoice`、`multiChoice`、`slider`、`number`、`text`、`secret`、`url`、`button`、`link`、`status` 和 `qr`。选择项使用稳定 ID，URL 控件提交 HTTP(S) 地址，插件通过自己的存储保存业务设置，按现有网络和凭据权限访问服务。`secret` 输入仅在用户提交时传给声明该控件的插件，值不写入页面状态恢复或宿主诊断。
 
 `uiAction(request, context)` 接收同样的页面上下文，加上控件 ID `control` 和用户提交的 `value`。无参数按钮省略 `value`。返回可选的 `message` 和 `refresh`，默认重新加载当前页面。界面 API 只在用户操作对应入口时运行，后台调度、专用登录回调和实时房间同步由独立宿主能力处理。
+
+### 局域网直连
+
+Manifest 的 `lanCookie` 声明服务端会话 Cookie 名称。插件须声明 `ui`，且使用独立的网络权限。用户在插件详情授权一个私网 IPv4 地址、协议和端口。API、封面与媒体沿用这组授权，直连禁止跳转。
+
+`context.lan.origin()` 返回已授权地址，`signedIn()` 返回本地会话状态。用户提交 `uiAction` 时可以调用 `sha256(value)`、`signIn(token)` 和 `signOut()`。插件负责登录协议，宿主将会话加密保存，`credential: "active"` 仅向已授权服务器发送 Cookie。封面请求也使用关联会话。更换地址和撤销授权会使旧会话失效。

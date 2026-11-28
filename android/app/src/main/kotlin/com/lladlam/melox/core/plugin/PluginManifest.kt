@@ -18,6 +18,7 @@ data class PluginManifest(
     val author: String? = null,
     val homepage: String? = null,
     val contributions: List<PluginUiEntry> = emptyList(),
+    val lanCookie: String? = null,
 ) {
     /**
      * Resolver-only plugins participate in the third-party playback stage and
@@ -174,6 +175,11 @@ object PluginManifestParser {
         } else null
         require(value.has("contributions") == (PluginCapability.UserInterface in capabilities))
         val contributions = if (value.has("contributions")) PluginUiContract.entries(value.getJSONArray("contributions")) else emptyList()
-        return PluginManifest(sourceId, name, version, apiVersion, entry, capabilities, networkDomains, authentication, author, homepage, contributions)
+        val lanCookie = if (value.has("lanCookie")) {
+            require(value.opt("lanCookie") is String && value.getString("lanCookie").matches(Regex("[A-Za-z0-9_-]{1,64}")))
+            require(networkDomains.isEmpty() && authentication == null && PluginCapability.UserInterface in capabilities && PluginCapability.Resolver !in capabilities)
+            value.getString("lanCookie")
+        } else null
+        return PluginManifest(sourceId, name, version, apiVersion, entry, capabilities, networkDomains, authentication, author, homepage, contributions, lanCookie)
     }
 }

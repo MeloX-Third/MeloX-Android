@@ -26,7 +26,9 @@ internal class PluginArtworkFetcher(private val context: Context, private val da
             val registry = MeloXMusicProviders.create(context)
             val generation = registry.generation
             val provider = registry[request.source] as? PluginMusicProvider ?: error("artwork source unavailable")
-            val bytes = PluginHttpBroker(provider.manifest, accountCurrent = {
+            val bytes = if (provider.manifest.lanCookie != null) {
+                provider.mediaBroker().use { it.imageBytes(request.url) }
+            } else PluginHttpBroker(provider.manifest, accountCurrent = {
                 registry.generation == generation && registry[request.source] === provider
             }).use { it.imageBytes(request.url) }
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

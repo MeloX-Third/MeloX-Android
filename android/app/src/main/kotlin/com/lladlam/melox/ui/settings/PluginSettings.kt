@@ -17,6 +17,9 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import com.lladlam.melox.core.plugin.PluginLan
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -277,6 +280,7 @@ internal fun PluginSettings() {
                                 val accounts = vault.accounts().map { it.id }
                                 com.lladlam.melox.core.plugin.PluginStorage.clear(context, id, accounts)
                                 vault.clear()
+                                PluginLan.clearOrigin(context, id)
                             }
                             manager.uninstall(id)
                         }
@@ -536,6 +540,7 @@ private fun PluginDetailDialog(
                     showTopSeparator = true,
                 )
             }
+            if (manifest.lanCookie != null) PluginLanSettings(manifest, manager, busy)
             PluginUiEntries(PluginUiSlot.PluginDetails, owner = manifest.sourceId, compact = true)
             plugin.error?.let { error ->
                 MeloXIosListRow(
@@ -613,4 +618,44 @@ private fun PluginDetailSection(
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
+}
+
+
+@Composable
+private fun PluginLanSettings(manifest: PluginManifest, manager: PluginManager, busy: Boolean) {
+    val context = LocalContext.current
+    val lan = remember(context, manifest) { PluginLan(context, manifest) }
+    var saved by remember(lan) { mutableStateOf(lan.origin()?.toString().orEmpty()) }
+    var address by remember(lan) { mutableStateOf(saved) }
+    var saving by remember(lan) { mutableStateOf(false) }
+    var error by remember(lan) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    OutlinedTextField(address, { address = it.take(256) }, label = { Text("NAS 地址") },
+        placeholder = { Text("http://192.168.1.10:5666") }, enabled = !busy && !saving, singleLine = true)
+    Text("仅授权此插件连接所填地址。使用 HTTP 时会话通过局域网明文传输。")
+    fun save(value: String?) {
+        saving = true
+        error = null
+        scope.launch {
+            try {
+                saved = withContext(Dispatchers.IO) {
+                    manager.changeAccount(manifest.sourceId, manifest) { lan.save(value) }
+                    lan.origin()?.toString().orEmpty()
+                }
+                address = saved
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                error = if (value != null && runCatching { PluginLan.parse(value) }.isFailure)
+                    "请输入带 http:// 或 https:// 的私网 IPv4 地址和端口" else PluginErrors.describe(failure)
+            } finally {
+                saving = false
+            }
+        }
+    }
+    Row {
+        TextButton(onClick = { save(address) }, enabled = !busy && !saving && address.isNotBlank() && address != saved) { Text("授权连接") }
+        TextButton(onClick = { save(null) }, enabled = !busy && !saving && saved.isNotEmpty()) { Text("撤销授权") }
+    }
+    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 }

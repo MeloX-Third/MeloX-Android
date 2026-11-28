@@ -24,6 +24,8 @@ fun interface PluginInvoker {
 
 class PluginRuntime(context: Context, private val plugin: PluginArchiveReader.Package) : Closeable, PluginInvoker {
     private val app = context.applicationContext
+    private val lan = PluginLan(app, plugin.manifest)
+    internal fun lanOrigin() = lan.origin()
     private val closed = AtomicBoolean()
     private val active = AtomicReference<PluginHttpBroker?>()
     private val interruptCall = AtomicReference<(() -> Unit)?>(null)
@@ -43,7 +45,7 @@ class PluginRuntime(context: Context, private val plugin: PluginArchiveReader.Pa
     internal fun downloadResumeScope(): String? {
         if (closed.get() || plugin.archiveSha256.isEmpty()) return null
         return PluginPackageTrust.sha256((plugin.manifest.sourceId.value + "\n" + plugin.archiveSha256 + "\n" +
-            accounts?.sessionStamp().orEmpty()).toByteArray(Charsets.UTF_8))
+            accounts?.sessionStamp().orEmpty() + (if (plugin.manifest.lanCookie != null) lan.stamp().toString() else "")).toByteArray(Charsets.UTF_8))
     }
     internal fun mediaBroker(expectedAccountScope: String? = null): PluginHttpBroker {
         check(!closed.get()) { "plugin runtime is closed" }
@@ -55,7 +57,11 @@ class PluginRuntime(context: Context, private val plugin: PluginArchiveReader.Pa
         }
         val lease = runCatching { accounts?.lease() }.getOrNull()
         check(scopeVault?.sessionStamp() == selected) { "DOWNLOAD_ACCOUNT_CHANGED" }
-        val broker = PluginHttpBroker(plugin.manifest, lease) { !closed.get() && scopeVault?.sessionStamp() == selected }
+        val lanStamp = if (plugin.manifest.lanCookie != null) lan.stamp() else null
+        val origin = lanStamp?.first
+        val broker = PluginHttpBroker(plugin.manifest, lease, origin, origin?.let { runCatching { lan.cookie(it) }.getOrNull() }) {
+            !closed.get() && scopeVault?.sessionStamp() == selected && (lanStamp == null || lan.stamp() == lanStamp)
+        }
         synchronized(media) {
             if (closed.get()) { broker.close(); error("CANCELLED") }
             media.add(broker)
@@ -115,7 +121,11 @@ class PluginRuntime(context: Context, private val plugin: PluginArchiveReader.Pa
         }
         val handlerThread = HandlerThread("melox-plugin-ipc").apply { start() }
         val http = Executors.newSingleThreadExecutor()
-        val broker = PluginHttpBroker(plugin.manifest, lease) { !closed.get() && accounts?.sessionStamp() == selectedSession }
+        val lanStamp = if (plugin.manifest.lanCookie != null) lan.stamp() else null
+        val origin = lanStamp?.first
+        val broker = PluginHttpBroker(plugin.manifest, lease, origin, origin?.let { runCatching { lan.cookie(it) }.getOrNull() }) {
+            !closed.get() && accounts?.sessionStamp() == selectedSession && (lanStamp == null || lan.stamp() == lanStamp)
+        }
         active.set(broker)
         val done = CountDownLatch(1)
         val result = AtomicReference<String?>()
@@ -159,7 +169,26 @@ class PluginRuntime(context: Context, private val plugin: PluginArchiveReader.Pa
                              require(input.opt("operation") is String) { "invalid host operation" }
                              val operation = input.getString("operation")
                              val value = if (operation == "http") JSONObject(broker.request(input.getJSONObject("request").toString()))
-                                 else {
+                                 else if (operation.startsWith("lan.")) {
+                                     require(plugin.manifest.lanCookie != null)
+                                     when (operation) {
+                                         "lan.origin" -> origin?.toString() ?: JSONObject.NULL
+                                         "lan.signedIn" -> origin?.let { runCatching { lan.cookie(it) != null }.getOrDefault(false) } ?: false
+                                         "lan.sha256" -> {
+                                             require(method == "uiAction")
+                                             PluginPackageTrust.sha256(input.getString("value").toByteArray(Charsets.UTF_8))
+                                         }
+                                         "lan.signIn" -> {
+                                             require(method == "uiAction")
+                                             lan.signIn(requireNotNull(origin), input.getString("value")); JSONObject.NULL
+                                         }
+                                         "lan.signOut" -> {
+                                             require(method == "uiAction" && lan.stamp() == lanStamp)
+                                             lan.signOut(); JSONObject.NULL
+                                         }
+                                         else -> error("unsupported LAN operation")
+                                     }
+                                 } else {
                                      require(input.opt("key") is String && (operation != "storage.set" || input.opt("value") is String)) { "invalid storage model" }
                                      storage.execute(operation, input.getString("key"), if (operation == "storage.set") input.getString("value") else null)
                                  }

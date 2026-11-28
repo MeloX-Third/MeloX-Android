@@ -5,13 +5,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Versioned standard transport only. No upstream/platform field inference. */
-internal class PluginCatalogCodec(private val manifest: PluginManifest) {
+internal class PluginCatalogCodec(private val manifest: PluginManifest, private val lanOrigin: () -> okhttp3.HttpUrl? = { null }) {
     private val source = manifest.sourceId
     private val editablePlaylistCapabilities = setOf(
         PluginCapability.PlaylistRename, PluginCapability.PlaylistDelete,
         PluginCapability.PlaylistRemoveMember, PluginCapability.PlaylistReorder,
     )
-    private fun artwork(value: JSONObject) = PluginArtwork.wrap(manifest, optionalText(value, "artworkUrl"))
+    private fun artwork(value: JSONObject) = PluginArtwork.wrap(manifest, optionalText(value, "artworkUrl"), lanOrigin())
     fun id(value: JSONObject): MusicResourceId {
         val text = text(value, "id", 4096)
         require(text.toByteArray(Charsets.UTF_8).size <= 4096) { "resource id too large" }
@@ -47,8 +47,8 @@ internal class PluginCatalogCodec(private val manifest: PluginManifest) {
     fun tracks(value: JSONObject, page: Int, size: Int): MusicPage<MusicTrack> {
         val checked = PluginResultValidator.search(source, value.toString())
         require(checked.page == page && checked.pageSize == size) { "pagination mismatch" }
-        return MusicPage(checked.tracks.map { it.copy(artworkUrl = PluginArtwork.wrap(manifest, it.artworkUrl),
-            album = it.album?.copy(artworkUrl = PluginArtwork.wrap(manifest, it.album.artworkUrl))) },
+        return MusicPage(checked.tracks.map { it.copy(artworkUrl = PluginArtwork.wrap(manifest, it.artworkUrl, lanOrigin()),
+            album = it.album?.copy(artworkUrl = PluginArtwork.wrap(manifest, it.album.artworkUrl, lanOrigin()))) },
             page, size, optionalLong(value, "total"), checked.hasMore)
     }
     fun <T> list(value: JSONObject, key: String, limit: Int, decode: (JSONObject) -> T): List<T> {
@@ -59,7 +59,7 @@ internal class PluginCatalogCodec(private val manifest: PluginManifest) {
     fun track(value: JSONObject): MusicTrack = tracks(JSONObject().put("page", 1).put("pageSize", 1)
         .put("hasMore", false).put("items", JSONArray().put(value)), 1, 1).items.single()
     fun account(value: JSONObject): MusicAccountSummary = MusicAccountSummary(source, text(value, "id", 4096),
-        text(value, "displayName", 512), avatarUrl = PluginArtwork.wrap(manifest, optionalText(value, "avatarUrl")), subtitle = optionalText(value, "subtitle"))
+        text(value, "displayName", 512), avatarUrl = PluginArtwork.wrap(manifest, optionalText(value, "avatarUrl"), lanOrigin()), subtitle = optionalText(value, "subtitle"))
 
     fun text(value: JSONObject, key: String, maximum: Int = 4096): String {
         require(value.opt(key) is String) { "$key must be a string" }

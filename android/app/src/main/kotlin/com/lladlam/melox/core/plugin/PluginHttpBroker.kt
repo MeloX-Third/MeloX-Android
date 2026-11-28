@@ -18,19 +18,26 @@ import org.json.JSONObject
 class PluginHttpBroker internal constructor(
     private val manifest: PluginManifest,
     private val credential: PluginAccountVault.Lease? = null,
+    private val lanOrigin: HttpUrl? = null,
+    private val lanCookie: String? = null,
     private val accountCurrent: () -> Boolean = { true },
 ) : java.io.Closeable {
     init { require(credential == null || credential.source == manifest.sourceId) { "credential source mismatch" } }
     private val requests = AtomicInteger()
     private val calls = java.util.concurrent.ConcurrentHashMap.newKeySet<Call>()
     @Volatile private var closed = false
-    private val client = OkHttpClient.Builder()
+    private val baseClient = OkHttpClient.Builder()
         .proxy(Proxy.NO_PROXY)
         .followRedirects(false).followSslRedirects(false)
         .retryOnConnectionFailure(false)
         .callTimeout(5, TimeUnit.SECONDS)
         .connectTimeout(3, TimeUnit.SECONDS).readTimeout(3, TimeUnit.SECONDS)
-        .dns(PluginPublicDns(manifest.networkDomains)).build()
+        .dns(if (lanOrigin == null) PluginPublicDns(manifest.networkDomains) else okhttp3.Dns { host ->
+            require(host == lanOrigin.host && PluginLan.isPrivateIpv4(host)) { "PERMISSION_DENIED" }
+            listOf(InetAddress.getByName(host))
+        }).build()
+    private val client = if (lanOrigin?.scheme == "http")
+        com.lladlam.melox.core.network.RestrictedHttpClient.create(baseClient, followRedirects = false) else baseClient
 
     fun request(json: String): String {
         check(!closed) { "plugin request cancelled" }
@@ -57,7 +64,8 @@ class PluginHttpBroker internal constructor(
             val builder = Request.Builder().url(url)
             headers.keys().forEach { name ->
                 require(headers.opt(name) is String) { "HTTP header must be a string" }
-                require(name.lowercase(java.util.Locale.ROOT) !in FORBIDDEN_HEADERS) { "forbidden request header" }
+                require(name.lowercase(java.util.Locale.ROOT) !in FORBIDDEN_HEADERS &&
+                    (lanOrigin == null || !name.equals("Cookie", ignoreCase = true))) { "forbidden request header" }
                 val value = headers.getString(name)
                 require(value.length <= 4096) { "request header too large" }
                 builder.header(name, value)
@@ -73,7 +81,7 @@ class PluginHttpBroker internal constructor(
                 check(!closed) { "plugin request cancelled" }
                 call.execute().use { response ->
                     if (response.code in setOf(301, 302, 303, 307, 308)) {
-                        require(redirect < 3) { "too many redirects" }
+                        require(lanOrigin == null && redirect < 3) { "too many redirects" }
                         val next = url.resolve(response.header("Location") ?: error("redirect missing location"))
                             ?: error("invalid redirect")
                         authorize(next)
@@ -106,6 +114,10 @@ class PluginHttpBroker internal constructor(
     }
 
     private fun authorize(url: HttpUrl) {
+        if (manifest.lanCookie != null) {
+            require(PluginLan.matches(lanOrigin, url) && url.toString().length <= 4096) { "PERMISSION_DENIED" }
+            return
+        }
         require(url.scheme == "https" && url.port == 443 && url.username.isEmpty() && url.password.isEmpty() &&
             url.host in manifest.networkDomains && url.toString().length <= 4096
         ) { "PERMISSION_DENIED" }
@@ -118,7 +130,9 @@ class PluginHttpBroker internal constructor(
         val destination = url.toHttpUrl()
         authorize(destination)
         check(!closed && accountCurrent())
-        val call = client.newCall(Request.Builder().url(destination).build())
+        val request = Request.Builder().url(destination)
+        if (lanOrigin != null) request.header("Cookie", credentialHeader(destination).second)
+        val call = client.newCall(request.build())
         calls.add(call)
         try {
             check(!closed && accountCurrent()) { "CANCELLED" }
@@ -175,6 +189,10 @@ class PluginHttpBroker internal constructor(
     /** Progressive media can stream longer than API requests; redirects stay disabled. */
     private fun credentialHeader(url: HttpUrl): Pair<String, String> {
         check(accountCurrent()) { "plugin account changed" }
+        if (lanOrigin != null) {
+            authorize(url)
+            return "Cookie" to (lanCookie ?: error("LOGIN_REQUIRED"))
+        }
         val auth = manifest.authentication ?: error("credential permission denied")
         require(auth.type in setOf("apiToken", "oauth2Pkce") && url.host in auth.domains) { "PERMISSION_DENIED" }
         val lease = credential ?: error("LOGIN_REQUIRED")
@@ -183,14 +201,18 @@ class PluginHttpBroker internal constructor(
         return auth.header to (auth.prefix + lease.token)
     }
 
-    fun mediaClient(credentialRequested: Boolean = false): OkHttpClient = client.newBuilder().callTimeout(0, TimeUnit.SECONDS)
+    fun mediaClient(credentialRequested: Boolean = false): OkHttpClient = baseClient.newBuilder().callTimeout(0, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS).addInterceptor { chain ->
             val call = chain.call()
             calls.add(call)
             try {
                 check(!closed && accountCurrent()) { "plugin media session revoked" }
                 authorize(chain.request().url)
-                val response = chain.proceed(chain.request())
+                val request = if (credentialRequested && lanOrigin != null) {
+                    val (name, value) = credentialHeader(chain.request().url)
+                    chain.request().newBuilder().header(name, value).build()
+                } else chain.request()
+                val response = chain.proceed(request)
                 val body = response.body
                 if (body == null) {
                     calls.remove(call)
@@ -224,9 +246,9 @@ class PluginHttpBroker internal constructor(
                 }
             } catch (error: Throwable) { calls.remove(call); throw error }
         }.addNetworkInterceptor { chain ->
-            authorize(chain.request().url)
+            if (lanOrigin == null) authorize(chain.request().url)
             check(!closed && accountCurrent()) { "plugin account changed" }
-            val request = if (credentialRequested) {
+            val request = if (credentialRequested && lanOrigin == null) {
                 val (name, value) = credentialHeader(chain.request().url)
                 chain.request().newBuilder().header(name, value).build()
             } else chain.request()
@@ -240,7 +262,9 @@ class PluginHttpBroker internal constructor(
                 throw java.io.IOException("UNSUPPORTED_MEDIA_FORMAT")
             }
             response
-        }.build()
+        }.build().let { mediaClient ->
+            if (lanOrigin?.scheme == "http") com.lladlam.melox.core.network.RestrictedHttpClient.create(mediaClient, followRedirects = false) else mediaClient
+        }
 
     override fun close() {
         closed = true

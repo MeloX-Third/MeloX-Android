@@ -158,6 +158,13 @@ class PluginIsolatedService : Service() {
                 apiVersion: 1, platform: 'android',
                 get account() { return account; },
                 http: Object.freeze({request: request => callHost({operation:'http', request})}),
+                lan: Object.freeze({
+                  origin: () => callHost({operation:'lan.origin'}),
+                  signedIn: () => callHost({operation:'lan.signedIn'}),
+                  sha256: value => callHost({operation:'lan.sha256', value}),
+                  signIn: value => callHost({operation:'lan.signIn', value}),
+                  signOut: () => callHost({operation:'lan.signOut'})
+                }),
                 storage: Object.freeze({
                   get: key => callHost({operation:'storage.get', key}),
                   set: (key, value) => callHost({operation:'storage.set', key, value}),

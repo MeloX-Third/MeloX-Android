@@ -2,17 +2,20 @@ package com.lladlam.melox.core.plugin
 
 import com.lladlam.melox.core.music.model.SourceId
 import java.net.URI
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.net.URLDecoder
 import java.net.URLEncoder
 
 /** Opaque provenance survives track persistence; never hand plugin HTTPS directly to Coil. */
 internal object PluginArtwork {
     data class Request(val source: SourceId, val url: String)
-    fun wrap(manifest: PluginManifest, raw: String?): String? {
+    fun wrap(manifest: PluginManifest, raw: String?, lanOrigin: HttpUrl? = null): String? {
         if (raw == null) return null
         PluginResultValidator.validateUrlSyntax(raw)
         val uri = URI(raw)
-        require(uri.scheme == "https" && uri.host in manifest.networkDomains && uri.port in setOf(-1, 443)) { "artwork permission denied" }
+        require(if (manifest.lanCookie != null) PluginLan.matches(lanOrigin, raw.toHttpUrl())
+            else uri.scheme == "https" && uri.host in manifest.networkDomains && uri.port in setOf(-1, 443)) { "artwork permission denied" }
         return "melox-plugin-image://artwork?source=${encode(manifest.sourceId.value)}&url=${encode(raw)}"
     }
     fun parse(raw: String): Request {

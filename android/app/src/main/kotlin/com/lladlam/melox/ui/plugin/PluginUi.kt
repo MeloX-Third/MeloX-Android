@@ -128,7 +128,7 @@ private fun PluginUiDialog(
         loadError = null
         try {
             val page = manager.invokeUi(state, "uiPage", request())
-            val codec = PluginCatalogCodec(state.manifest)
+            val codec = PluginCatalogCodec(state.manifest) { PluginLan(context, state.manifest).origin() }
             tracks = page.optJSONArray("tracks")?.let { items ->
                 List(items.length()) { codec.track(items.getJSONObject(it)) }
             }.orEmpty()

@@ -7,6 +7,7 @@ import com.lladlam.melox.core.music.model.*
 import com.lladlam.melox.core.music.provider.*
 import org.json.JSONArray
 import org.json.JSONObject
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /** Maps only versioned MeloX fields. Platform-specific conversion belongs in the script. */
 class PluginMusicProvider(val manifest: PluginManifest, private val runtime: PluginInvoker) :
@@ -40,7 +41,8 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
             PluginCapability.Resolver -> MusicCapability.Resolver
         }
     }
-    private val codec = PluginCatalogCodec(manifest)
+    internal fun lanOrigin() = (runtime as? PluginRuntime)?.lanOrigin()
+    private val codec = PluginCatalogCodec(manifest, ::lanOrigin)
     internal fun mediaBroker(expectedAccountScope: String? = null): PluginHttpBroker =
         (runtime as? PluginRuntime)?.mediaBroker(expectedAccountScope) ?: PluginHttpBroker(manifest)
     internal fun downloadResumeScope(): String? = (runtime as? PluginRuntime)?.downloadResumeScope()
@@ -242,7 +244,7 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
                     }, bitrate = optionalNumber(result, "bitrate", Int.MAX_VALUE.toLong())?.toInt(),
                     format = format, expiresAtEpochMs = expires, credentialReference = if (result.has("credential")) {
                         require(!allowExternalMedia) { "resolver media cannot use host credentials" }
-                        require(result.opt("credential") == "active" && manifest.authentication?.type in setOf("apiToken", "oauth2Pkce")) { "invalid media credential reference" }
+                        require(result.opt("credential") == "active" && (manifest.lanCookie != null || manifest.authentication?.type in setOf("apiToken", "oauth2Pkce"))) { "invalid media credential reference" }
                         "active"
                     } else null)
             }
@@ -294,6 +296,8 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
         val uri = java.net.URI(url)
         if (allowExternalMedia) {
             require(uri.scheme in setOf("http", "https") && uri.port in setOf(-1, 80, 443)) { "resolver media URL is not playable" }
+        } else if (manifest.lanCookie != null) {
+            require(PluginLan.matches(lanOrigin(), url.toHttpUrl())) { "media permission denied" }
         } else {
             require(uri.scheme == "https" && uri.host in manifest.networkDomains && uri.port in setOf(-1, 443)) { "media permission denied" }
         }

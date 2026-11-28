@@ -53,6 +53,7 @@ export interface HostContext {
   /** Opaque host account identity. No raw credentials are exposed. */
   readonly account: AccountSummary | null;
   http: { request(request: { url: string; method?: "GET" | "POST"; headers?: Record<string, string>; body?: string; credential?: "active" }): Promise<HttpResponse> };
+  lan?: { origin(): Promise<string | null>; signedIn(): Promise<boolean>; sha256(value: string): Promise<string>; signIn(token: string): Promise<null>; signOut(): Promise<null> };
   storage: { get(key: string): Promise<string | null>; set(key: string, value: string): Promise<void>; remove(key: string): Promise<void> };
   log: { info(message: string): void; warn(message: string): void; error(message: string): void };
 }

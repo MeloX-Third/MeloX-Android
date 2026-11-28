@@ -28,7 +28,7 @@ import okhttp3.OkHttpClient
 internal object RestrictedHttpClient {
     private const val ALIAS_DOMAIN = "media-http.melox.invalid"
 
-    fun create(base: OkHttpClient): OkHttpClient {
+    fun create(base: OkHttpClient, followRedirects: Boolean = true): OkHttpClient {
         val routes = ConcurrentHashMap<String, String>()
         val upstreamDns = base.dns
         val upstreamProxySelector = base.proxySelector
@@ -74,8 +74,8 @@ internal object RestrictedHttpClient {
                     else -> upstreamDns.lookup(host)
                 }
             })
-            .followRedirects(true)
-            .followSslRedirects(true)
+            .followRedirects(followRedirects)
+            .followSslRedirects(followRedirects)
             .addInterceptor { chain ->
                 val request = chain.request()
                 val origin = Origin(request.url.scheme, request.url.host, request.url.port, request.header("Host"))

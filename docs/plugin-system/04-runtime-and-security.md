@@ -47,7 +47,7 @@ QuickJS 包装器没有暴露可用的强制中断接口；watchdog 由独立线
 
 ## 实际网络权限
 
-`PluginHttpBroker` 使用全新 OkHttpClient，无宿主拦截器、代理、Cookie jar 或账号认证器：
+公网插件的 `PluginHttpBroker` 使用独立 OkHttpClient，并隔离宿主 Cookie 与认证器。
 
 - 仅公开 HTTPS、443 端口，域名与 Manifest 精确匹配，无 userinfo。
 - 自定义 DNS 在给 OkHttp 连接候选地址前检查所有结果；任一私网/保留地址使请求失败。
@@ -59,10 +59,12 @@ QuickJS 包装器没有暴露可用的强制中断接口；watchdog 由独立线
 DNS 校验返回的同一地址列表交给 OkHttp 建立连接，避免“校验后另做一次未校验解析”。
 媒体使用相同 DNS 和 URL 策略，并关闭自动重定向。它不使用宿主媒体 HTTPClient。
 
-`resolver` 能力是唯一例外：`resolveFallback` 返回的音频 URL 可以是不在
+声明 `lanCookie` 的插件可以访问用户为该插件授权的一个私网 IPv4 地址。API、封面和媒体均校验协议、地址与端口，禁用重定向。详见 [V1 局域网直连](03-protocol-v1.md#局域网直连)。
+
+`resolver` 能力的 `resolveFallback` 返回的音频 URL 可以是不在
 `networkDomains` 内的 HTTP(S) CDN 直链，由 Media3 默认媒体栈加载（仍拒绝 HLS/DASH、
 DRM、预览、userinfo 和 `credential: "active"`）。这不扩大插件脚本的 API 网络权限：
-脚本仍只能经 `PluginHttpBroker` 访问声明的 HTTPS 域名。解析器插件因此不能把返回 URL
+解析器脚本仍只能经 `PluginHttpBroker` 访问声明的 HTTPS 域名。解析器插件因此不能把返回 URL
 当作任意 API 抓取通道；部署侧仍应只把可信解析器加入回退链。
 
 `ProviderPlaybackResolver` 通过 DataSpec.customData 给 `PluginMediaDataSource` 传递

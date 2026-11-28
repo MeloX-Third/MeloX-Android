@@ -12,6 +12,7 @@ export interface PluginManifest {
   /** Relative archive path to the JavaScript entry file. */
   entry: string;
   capabilities: PluginCapability[];
+  lanCookie?: string;
   contributions?: UiEntry[];
   /** Exact lowercase ASCII hostnames. Android permits public HTTPS targets on port 443 only. */
   networkDomains?: string[];
