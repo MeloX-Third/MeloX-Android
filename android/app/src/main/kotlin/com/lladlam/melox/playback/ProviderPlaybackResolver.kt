@@ -147,6 +147,22 @@ class ProviderPlaybackResolver(
         if (isProviderTrackUri(uri)) resolveProviderRequest(uri)
     }
 
+    /** 作废指定多平台曲目的已缓存直链，供播放中途断流或链接过期自愈重连使用。 */
+    internal fun invalidate(uri: Uri?) {
+        uri ?: return
+        val target = uri.toString()
+        val pathPrefix = uri.path.orEmpty()
+        synchronized(cacheLock) {
+            resolvedUris.keys.removeAll { key ->
+                key.requestUri == target || (pathPrefix.isNotBlank() && key.requestUri.contains(pathPrefix))
+            }
+        }
+        inFlight.keys.removeAll { key ->
+            key.requestUri == target || (pathPrefix.isNotBlank() && key.requestUri.contains(pathPrefix))
+        }
+        Log.i(TAG, "Invalidated cached provider URL for $pathPrefix")
+    }
+
     private fun resolveProviderRequest(uri: Uri): ResolvedRequest {
         val source = parseSource(uri)
             ?: throw IOException("Invalid MeloX provider source: $uri")

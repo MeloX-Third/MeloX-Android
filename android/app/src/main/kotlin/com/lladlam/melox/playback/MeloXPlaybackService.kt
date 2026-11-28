@@ -30,6 +30,7 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
@@ -163,7 +164,78 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     private var lanTogetherSharesDevice = false
     private var lanTogetherLastSeekAtMs = 0L
     @Volatile private var screenInteractive = true
+    @Volatile private var sleepingForOffload = false
     private var audioOffloadAllowed: Boolean? = null
+    /** 当前因断流/卡死恢复而临时绕过硬件直通（AudioOffload）的曲目 mediaId，切歌即重置。 */
+    private var offloadBypassedMediaId: String? = null
+    /** 同一首曲目的自动断点续播恢复次数（防止死循环，最多 2 次）。 */
+    private var stalledRecoveryMediaId: String? = null
+    private var stalledRecoveryCount = 0
+    private var bufferingStartedAtRealtimeMs = 0L
+    private var lastObservedPlayingMediaId: String? = null
+    private var lastObservedPlayingPosMs = C.TIME_UNSET
+    private var lastObservedPlayingAdvanceAtMs = 0L
+    private var stallWatchdogScheduled = false
+    private val stallWatchdog = object : Runnable {
+        override fun run() {
+            stallWatchdogScheduled = false
+            val active = player ?: return
+            if (!active.playWhenReady) return
+            val item = active.currentMediaItem ?: return
+            val now = SystemClock.elapsedRealtime()
+            when (active.playbackState) {
+                Player.STATE_BUFFERING -> {
+                    if (bufferingStartedAtRealtimeMs == 0L) bufferingStartedAtRealtimeMs = now
+                    val elapsed = now - bufferingStartedAtRealtimeMs
+                    if (elapsed >= STALL_BUFFERING_TIMEOUT_MS) {
+                        Log.w(TAG, "Playback stalled in STATE_BUFFERING for ${elapsed}ms, attempting seamless recovery")
+                        bufferingStartedAtRealtimeMs = 0L
+                        if (attemptPlaybackRecovery(active, reason = "buffering_timeout", forceDisableOffload = false)) {
+                            scheduleStallWatchdog()
+                            return
+                        }
+                    }
+                    scheduleStallWatchdog()
+                }
+                Player.STATE_READY -> {
+                    bufferingStartedAtRealtimeMs = 0L
+                    if (active.isPlaying) {
+                        // Audio Offload 深度休眠期间 ExoPlayer 刻意不推进软件时钟，绝不误判为卡死。
+                        if (sleepingForOffload || !screenInteractive) {
+                            lastObservedPlayingPosMs = C.TIME_UNSET
+                            lastObservedPlayingAdvanceAtMs = now
+                            return
+                        }
+                        val pos = active.currentPosition
+                        val mediaId = item.mediaId
+                        if (mediaId != lastObservedPlayingMediaId || pos != lastObservedPlayingPosMs) {
+                            lastObservedPlayingMediaId = mediaId
+                            lastObservedPlayingPosMs = pos
+                            lastObservedPlayingAdvanceAtMs = now
+                            // 稳定前进超过 8 秒后清零该曲目的恢复计数。
+                            if (mediaId == stalledRecoveryMediaId && stalledRecoveryCount > 0 && pos > 8_000L) {
+                                stalledRecoveryCount = 0
+                            }
+                        } else if (
+                            lastObservedPlayingAdvanceAtMs > 0L &&
+                            now - lastObservedPlayingAdvanceAtMs >= STALL_FROZEN_PLAYING_TIMEOUT_MS
+                        ) {
+                            Log.w(TAG, "Playback position frozen at ${pos}ms for ${now - lastObservedPlayingAdvanceAtMs}ms, disabling offload and recovering")
+                            lastObservedPlayingAdvanceAtMs = now
+                            if (attemptPlaybackRecovery(active, reason = "position_frozen", forceDisableOffload = true)) {
+                                scheduleStallWatchdog()
+                                return
+                            }
+                        }
+                        scheduleStallWatchdog()
+                    }
+                }
+                else -> {
+                    bufferingStartedAtRealtimeMs = 0L
+                }
+            }
+        }
+    }
     private var screenStateReceiverRegistered = false
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -171,6 +243,10 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                 Intent.ACTION_SCREEN_OFF -> {
                     screenInteractive = false
                     superLyricPublisher?.pauseForScreenOff()
+                    // 息屏且正常播放中时立刻停掉定时看门狗，不打断 AudioOffload 深度休眠。
+                    if (player?.playbackState == Player.STATE_READY) {
+                        cancelStallWatchdog()
+                    }
                 }
                 Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
                     val wasOff = !screenInteractive
@@ -179,6 +255,11 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                         handler.removeCallbacks(modeMonitor)
                         handler.post(modeMonitor)
                         superLyricPublisher?.syncPlayback()
+                        if (player?.playWhenReady == true && !sleepingForOffload) {
+                            lastObservedPlayingPosMs = C.TIME_UNSET
+                            lastObservedPlayingAdvanceAtMs = SystemClock.elapsedRealtime()
+                            scheduleStallWatchdog()
+                        }
                     }
                 }
             }
@@ -278,8 +359,16 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             //   `onMediaItemTransition` 早就把这首没出声的歌写进了历史/推荐记录。
             //   这类错误**重试没有意义**（再试一万次也没有链接），正确做法是向前跳过。
             if (active == null || !isUnavailableSourceError(error)) {
-                // 非音源类失败（网络抖动 / 解析超时 / 解码失败）以前同样是静默的，
-                // 用户点完歌看不到任何动静。这里给一句兜底提示。
+                // 流媒体中途断流、URL 签名过期（HTTP 403/410）、EOF 或 Offload 异常：
+                // 在线时优先自动刷新直链、清理截断缓存并从断点续播，最多重试 2 次。
+                if (active != null && MeloXNetworkAvailability.isOnline(this@MeloXPlaybackService)) {
+                    val recovered = attemptPlaybackRecovery(
+                        active = active,
+                        reason = error.errorCodeName,
+                        forceDisableOffload = isAudioTrackOrOffloadError(error),
+                    )
+                    if (recovered) return
+                }
                 MeloXPlaybackNotice.show(
                     this@MeloXPlaybackService,
                     MeloXPlaybackNotice.describe(
@@ -337,10 +426,22 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             Log.d(TAG, "isPlaying=$isPlaying, ongoing=${isPlaybackOngoing()}")
             // 与 STATE_READY 那条路径互补：无缝切歌（新歌已预加载、不经过 BUFFERING）
             // 时 `onPlaybackStateChanged` 可能根本不触发，这里兜住。
-            if (isPlaying) player?.let(::markSongActuallyPlayed)
+            if (isPlaying) {
+                player?.let(::markSongActuallyPlayed)
+                if (screenInteractive && !sleepingForOffload) scheduleStallWatchdog()
+            } else if (player?.playWhenReady != true) {
+                cancelStallWatchdog()
+            }
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (playWhenReady) {
+                if (player?.playbackState == Player.STATE_BUFFERING || (screenInteractive && !sleepingForOffload)) {
+                    scheduleStallWatchdog()
+                }
+            } else {
+                cancelStallWatchdog()
+            }
             if (lanBarrier && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
                 player?.let { lanPlayback = buildLanPlayback(it) }
                 MeloXLanRuntime.onTogetherTrackEnded()
@@ -353,8 +454,20 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             val active = player ?: return
+            if (playbackState == Player.STATE_BUFFERING && active.playWhenReady) {
+                if (bufferingStartedAtRealtimeMs == 0L) {
+                    bufferingStartedAtRealtimeMs = SystemClock.elapsedRealtime()
+                }
+                scheduleStallWatchdog()
+            } else {
+                bufferingStartedAtRealtimeMs = 0L
+                if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+                    cancelStallWatchdog()
+                }
+            }
             if (playbackState == Player.STATE_READY && active.isPlaying) {
                 markSongActuallyPlayed(active)
+                if (screenInteractive && !sleepingForOffload) scheduleStallWatchdog()
             }
             if (playbackState == Player.STATE_ENDED) {
                 if (lanBarrier) {
@@ -387,6 +500,18 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             recommendationRetryAfterRealtimeMs = 0L
             autoMixRetrySourceId = null
             autoMixRetryAfterRealtimeMs = 0L
+            bufferingStartedAtRealtimeMs = 0L
+            lastObservedPlayingMediaId = mediaItem?.mediaId
+            lastObservedPlayingPosMs = C.TIME_UNSET
+            lastObservedPlayingAdvanceAtMs = SystemClock.elapsedRealtime()
+            if (mediaItem?.mediaId != stalledRecoveryMediaId) {
+                stalledRecoveryMediaId = mediaItem?.mediaId
+                stalledRecoveryCount = 0
+            }
+            if (offloadBypassedMediaId != null && offloadBypassedMediaId != mediaItem?.mediaId) {
+                offloadBypassedMediaId = null
+                player?.let(::syncAudioOffloadPolicy)
+            }
             val transitionedId = mediaItem?.mediaId?.toLongOrNull(); val previousHistoryId = historySongId
             if (previousHistoryId != null && previousHistoryId != transitionedId) {
                 playbackHistoryReporter.recordDuration(previousHistoryId, elapsedMs = listenedTimeTracker.elapsedMs(SystemClock.elapsedRealtime()))
@@ -1296,8 +1421,18 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                 }
             }
         }
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 15_000,
+                /* maxBufferMs = */ 60_000,
+                /* bufferForPlaybackMs = */ 1_500,
+                /* bufferForPlaybackAfterRebufferMs = */ 3_000,
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
         return ExoPlayer.Builder(this, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
             .apply {
@@ -1310,7 +1445,15 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                     addAudioOffloadListener(
                         object : ExoPlayer.AudioOffloadListener {
                             override fun onSleepingForOffloadChanged(isSleepingForOffload: Boolean) {
+                                sleepingForOffload = isSleepingForOffload
                                 Log.i(TAG, "Audio offload sleeping=$isSleepingForOffload")
+                                if (isSleepingForOffload) {
+                                    cancelStallWatchdog()
+                                } else if (screenInteractive && player?.playWhenReady == true) {
+                                    lastObservedPlayingPosMs = C.TIME_UNSET
+                                    lastObservedPlayingAdvanceAtMs = SystemClock.elapsedRealtime()
+                                    scheduleStallWatchdog()
+                                }
                             }
                         },
                     )
@@ -1322,9 +1465,97 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             }
     }
 
-    /** 仅在未启用局域网投屏、未启用 USB 独占且未进行 AutoMix 淡入淡出时允许硬件音频直通。 */
-    private fun shouldAllowAudioOffload(): Boolean =
-        !MeloXCastAudioTap.needsPcmPipeline() && mixStartedAt == 0L
+    /** 仅在未启用局域网投屏、未启用 USB 独占、未进行 AutoMix 淡入淡出且当前曲目未触发 Offload 兜底时允许硬件音频直通。 */
+    private fun shouldAllowAudioOffload(): Boolean {
+        val currentId = player?.currentMediaItem?.mediaId
+        val bypassed = currentId != null && currentId == offloadBypassedMediaId
+        return !bypassed && !MeloXCastAudioTap.needsPcmPipeline() && mixStartedAt == 0L
+    }
+
+    private fun scheduleStallWatchdog() {
+        if (stallWatchdogScheduled) return
+        stallWatchdogScheduled = true
+        handler.postDelayed(stallWatchdog, STALL_WATCHDOG_INTERVAL_MS)
+    }
+
+    private fun cancelStallWatchdog() {
+        if (!stallWatchdogScheduled) return
+        stallWatchdogScheduled = false
+        handler.removeCallbacks(stallWatchdog)
+    }
+
+    private fun isAudioTrackOrOffloadError(error: PlaybackException): Boolean = when (error.errorCode) {
+        PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
+        PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED,
+        PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_WRITE_FAILED,
+        PlaybackException.ERROR_CODE_AUDIO_TRACK_OFFLOAD_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FAILED,
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> true
+        else -> false
+    }
+
+    /**
+     * 播放中途断流/过期/卡死时的自动断点续播恢复：
+     * - 第 1 次：作废该曲目的 URL 缓存、清理可能截断的媒体缓存分片并从断点无缝续播；
+     * - 第 2 次（或显式指定）：同时临时关闭该曲目 AudioOffload 走软解兜底。
+     */
+    private fun attemptPlaybackRecovery(
+        active: ExoPlayer,
+        reason: String,
+        forceDisableOffload: Boolean,
+    ): Boolean {
+        val item = active.currentMediaItem ?: return false
+        val mediaId = item.mediaId
+        if (mediaId != stalledRecoveryMediaId) {
+            stalledRecoveryMediaId = mediaId
+            stalledRecoveryCount = 0
+        }
+        if (stalledRecoveryCount >= MAX_STALL_RECOVERIES_PER_TRACK) {
+            Log.w(TAG, "Recovery exhausted for mediaId=$mediaId (reason=$reason)")
+            return false
+        }
+        stalledRecoveryCount++
+        val attempt = stalledRecoveryCount
+        val resumeIndex = active.currentMediaItemIndex
+        val resumePosMs = active.currentPosition.coerceAtLeast(0L)
+        val uri = item.localConfiguration?.uri
+        val disableOffload = forceDisableOffload || attempt >= 2
+
+        Log.w(TAG, "Recovering playback mediaId=$mediaId attempt=$attempt/$MAX_STALL_RECOVERIES_PER_TRACK pos=${resumePosMs}ms reason=$reason disableOffload=$disableOffload")
+
+        if (disableOffload) {
+            offloadBypassedMediaId = mediaId
+            syncAudioOffloadPolicy(active)
+        }
+
+        // 先作废失效直链缓存（内存操作极快）并异步清理可能半截损坏的磁盘缓存分片，再立刻断点续播。
+        val reportedUri = runCatching { uri?.let(playbackResolver::resolveReportedUri) }.getOrNull()
+        playbackResolver.invalidate(uri)
+        val cacheFragments = buildList {
+            uri?.lastPathSegment?.takeIf(String::isNotBlank)?.let { seg ->
+                if (seg.all(Char::isDigit)) add(":$seg:")
+            }
+            reportedUri?.toString()?.takeIf { it.startsWith("http") }?.let(::add)
+        }
+        if (cacheFragments.isNotEmpty()) {
+            serviceScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { MeloXMediaCache.removeMatching(this@MeloXPlaybackService, cacheFragments) }
+            }
+        }
+
+        handler.post {
+            val target = player ?: return@post
+            if (target.currentMediaItem?.mediaId != mediaId) return@post
+            runCatching {
+                target.seekTo(resumeIndex, resumePosMs)
+                target.prepare()
+                target.play()
+            }.onFailure {
+                Log.e(TAG, "Playback recovery seek/prepare failed", it)
+            }
+        }
+        return true
+    }
 
     private fun syncAudioOffloadPolicy(target: ExoPlayer) {
         val allow = shouldAllowAudioOffload()
@@ -2713,6 +2944,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         serviceScope.launch { runCatching { com.lladlam.melox.dlna.DlnaSession.disconnect(resumeLocal = false) } }
         MeloXLanRuntime.detach(this)
         handler.removeCallbacks(lanStateRunnable)
+        cancelStallWatchdog()
         lanCastReceiver?.stop()
         lanCastReceiver = null
         com.lladlam.melox.core.autosync.AutoSyncPlaybackBridge.audioResolver = null
@@ -3176,6 +3408,10 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         const val LYRICS_NOTIFICATION_ID = 1702
         const val ANALYSIS_NOTIFICATION_CHANNEL = "melox_analysis"
         const val ANALYSIS_NOTIFICATION_ID = 1004
+        const val STALL_WATCHDOG_INTERVAL_MS = 2_000L
+        const val STALL_BUFFERING_TIMEOUT_MS = 12_000L
+        const val STALL_FROZEN_PLAYING_TIMEOUT_MS = 6_000L
+        const val MAX_STALL_RECOVERIES_PER_TRACK = 2
     }
 }
 
