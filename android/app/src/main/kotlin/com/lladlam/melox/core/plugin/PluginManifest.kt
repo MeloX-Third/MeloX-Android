@@ -17,6 +17,7 @@ data class PluginManifest(
     val authentication: PluginAuthentication? = null,
     val author: String? = null,
     val homepage: String? = null,
+    val contributions: List<PluginUiEntry> = emptyList(),
 ) {
     /**
      * Resolver-only plugins participate in the third-party playback stage and
@@ -38,6 +39,7 @@ data class PluginAuthentication(val type: String, val header: String = "Authoriz
 data class PluginOAuthConfiguration(val authorizationEndpoint: String, val tokenEndpoint: String, val clientId: String, val scopes: List<String>)
 
 enum class PluginCapability(val wireName: String, val methods: Set<String>) {
+    UserInterface("ui", setOf("uiPage", "uiAction")),
     Search("search", setOf("search")), Playback("playback", setOf("resolvePlayback")), Lyrics("lyrics", setOf("lyrics")),
     Playlists("playlists", setOf("playlists", "searchPlaylists", "playlistDetail")),
     PlaylistWrite("playlistWrite", setOf("writablePlaylists", "addTrackToPlaylist")),
@@ -170,6 +172,8 @@ object PluginManifestParser {
                 require(it.length <= 2048 && uri.scheme == "https" && uri.host != null && uri.rawUserInfo == null)
             }
         } else null
-        return PluginManifest(sourceId, name, version, apiVersion, entry, capabilities, networkDomains, authentication, author, homepage)
+        require(value.has("contributions") == (PluginCapability.UserInterface in capabilities))
+        val contributions = if (value.has("contributions")) PluginUiContract.entries(value.getJSONArray("contributions")) else emptyList()
+        return PluginManifest(sourceId, name, version, apiVersion, entry, capabilities, networkDomains, authentication, author, homepage, contributions)
     }
 }

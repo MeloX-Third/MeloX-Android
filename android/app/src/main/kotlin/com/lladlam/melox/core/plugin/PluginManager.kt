@@ -23,9 +23,10 @@ class PluginManager(
     data class LoadedProvider(val provider: MusicProvider, val resources: Closeable)
     enum class Status { Disabled, Enabled, Failed }
     data class State(val manifest: PluginManifest, val status: Status, val error: String? = null,
-        val publisher: PluginPackageTrust.Publisher? = null, val archiveSha256: String = "", val integrityChecked: Boolean = false)
+        val publisher: PluginPackageTrust.Publisher? = null, val archiveSha256: String = "", val integrityChecked: Boolean = false, internal val revision: Long = 0)
 
     private val lock = Any()
+    private var revision = 0L
     private val loaded = mutableMapOf<SourceId, LoadedProvider>()
     private val state = MutableStateFlow<Map<SourceId, State>>(emptyMap())
     val plugins = state.asStateFlow()
@@ -41,6 +42,21 @@ class PluginManager(
         recoveryIssue.value = null
         restore()
     }
+    internal suspend fun invokeUi(expected: State, method: String, request: org.json.JSONObject): org.json.JSONObject {
+        val source = expected.manifest.sourceId
+        val target = synchronized(lock) {
+            check(state.value[source] === expected && expected.status == Status.Enabled)
+            require(PluginCapability.UserInterface in expected.manifest.capabilities)
+            require(method in PluginCapability.UserInterface.methods)
+            loaded.getValue(source)
+        }
+        val runtime = target.resources as PluginInvoker
+        val raw = runtime.invoke(method, org.json.JSONArray().put(request))
+        PluginWireContract.check(method, raw)
+        synchronized(lock) { check(loaded[source] === target && state.value[source] === expected) }
+        return org.json.JSONObject(raw)
+    }
+
     fun publisherFingerprint(source: SourceId): String? = synchronized(lock) { store.publisherFingerprint(source) }
     fun dismissDamaged(storageKey: String) = synchronized(lock) {
         store.dismissDamaged(storageKey)
@@ -239,7 +255,7 @@ class PluginManager(
     private fun publish(value: State) {
         val installed = store.read(value.manifest.sourceId)
         state.value = state.value + (value.manifest.sourceId to value.copy(publisher = installed?.publisher,
-            archiveSha256 = installed?.archiveSha256.orEmpty(), integrityChecked = installed?.integrityChecked == true))
+            archiveSha256 = installed?.archiveSha256.orEmpty(), integrityChecked = installed?.integrityChecked == true, revision = ++revision))
     }
     private fun checkOpen() { check(!closed) { "plugin manager is closed" } }
 }

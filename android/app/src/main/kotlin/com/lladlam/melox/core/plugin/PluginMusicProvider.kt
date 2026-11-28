@@ -16,8 +16,9 @@ class PluginMusicProvider(val manifest: PluginManifest, private val runtime: Plu
     FallbackPlaybackCapability, PlaylistWriteCapability, PlaylistCreateCapability, PlaylistRenameCapability, PlaylistDeleteCapability, PlaylistRemoveMemberCapability, PlaylistReorderCapability {
     override val sourceId = manifest.sourceId
     override val displayName = manifest.name
-    override val capabilities = manifest.capabilities.mapTo(mutableSetOf()) {
+    override val capabilities = manifest.capabilities.mapNotNullTo(mutableSetOf()) {
         when (it) {
+            PluginCapability.UserInterface -> null
             PluginCapability.Search -> MusicCapability.Search
             PluginCapability.Playback -> MusicCapability.Playback
             PluginCapability.Lyrics -> MusicCapability.Lyrics

@@ -1,5 +1,8 @@
 ﻿package com.lladlam.melox.ui.player
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.Animatable
@@ -926,6 +929,12 @@ private fun MeloXPageSelectorV3(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CupertinoPageButton(
+        PluginUiEntries(
+            PluginUiSlot.PlayerPage,
+            resource = state.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode),
+            compact = true,
+            entryLabel = "扩展",
+        )
             kind = CupertinoGlyphKind.Lyrics,
             selected = page == MeloXNowPlayingPage.Lyrics,
             enabled = true,

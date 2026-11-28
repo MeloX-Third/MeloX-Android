@@ -1,5 +1,8 @@
 package com.lladlam.melox.ui.settings
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
+import com.lladlam.melox.ui.plugin.hasPluginUiEntries
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -320,6 +323,7 @@ fun SettingsScreen(
     }
 
     val normalized = search.trim().lowercase()
+    val hasPluginExtensions = hasPluginUiEntries(PluginUiSlot.Extensions, normalized)
     val visibleSections = SettingsSections.mapNotNull { section ->
         val filtered = section.items.filter { item ->
             val supported = when (item.route) {
@@ -330,7 +334,7 @@ fun SettingsScreen(
             supported && (normalized.isBlank() || listOf(item.route.title, item.subtitle, item.keywords)
                 .joinToString(" ").lowercase().contains(normalized))
         }
-        filtered.takeIf { it.isNotEmpty() }?.let { SettingsSection(section.title, it) }
+        filtered.takeIf { it.isNotEmpty() || (section.title == "扩展" && hasPluginExtensions) }?.let { SettingsSection(section.title, it) }
     }
 
     // ⚠ 2026-09-29：状态栏避让必须放在 `verticalScroll` **之后**（即滚动内容的内边距里）。
@@ -398,7 +402,8 @@ fun SettingsScreen(
                 )
             }
             if (expanded) {
-                SettingsSectionCard(section) { selected ->
+                if (section.title == "扩展") PluginUiEntries(PluginUiSlot.Extensions, filter = normalized)
+                if (section.items.isNotEmpty()) SettingsSectionCard(section) { selected ->
                     if (selected == SettingsRoute.Messages && onOpenMessages != null) {
                         onOpenMessages()
                     } else {

@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -2242,6 +2244,8 @@ private fun MeloXBottomChrome(
                 bottom = if (split) 4.dp else 8.dp,
             ),
     ) {
+        PluginUiEntries(PluginUiSlot.Navigation, modifier = Modifier.align(Alignment.End),
+            compact = true, entryLabel = "插件页面")
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2873,6 +2877,7 @@ private fun MeloXVerticalNavigation(
                 .padding(vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            PluginUiEntries(PluginUiSlot.Navigation, compact = true, entryLabel = "扩展")
             (if (compactProgress > .5f) listOf(
                 if (selectedTab == AppTab.Search) tabs.firstOrNull() ?: AppTab.Settings else selectedTab,
                 AppTab.Search,

@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.search
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.lladlam.melox.ui.state.rememberRetainedPageState
 
@@ -159,6 +161,11 @@ private fun PluginCatalogContent(
     Column(Modifier.fillMaxSize()) {
         LazyRow(contentPadding = PaddingValues(horizontal = 12.dp)) {
             items(sections) { (key, label) -> TextButton(onClick = { section = key }) { Text(if (section == key) "✓ $label" else label) } }
+        }
+        when (val selected = collection) {
+            is MusicPlaylistSummary -> PluginUiEntries(PluginUiSlot.Playlist, resource = selected.id, compact = true)
+            is MusicAlbumSummary -> PluginUiEntries(PluginUiSlot.Album, resource = selected.id, compact = true)
+            is MusicArtistSummary -> PluginUiEntries(PluginUiSlot.Artist, resource = selected.id, compact = true)
         }
         if (collection != null) TextButton(onClick = { collection = null }) { Text("返回列表") }
         if (section == "library" && collection == null && provider != null && create != null) {

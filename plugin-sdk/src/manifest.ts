@@ -1,6 +1,7 @@
+import type { UiEntry } from "./ui.js";
 /** Manifest accepted by Android's PluginManifestParser (API version 1). */
 export type PluginCapability = "search" | "playback" | "lyrics" | "playlists" | "playlistWrite" | "playlistCreate" | "playlistRename" | "playlistDelete" | "playlistRemoveMember" | "playlistReorder" | "albums" | "artists" |
-  "rankings" | "homeFeed" | "userLibrary" | "favorites" | "authentication" | "download" | "resolver";
+  "rankings" | "homeFeed" | "userLibrary" | "favorites" | "authentication" | "download" | "resolver" | "ui";
 
 export interface PluginManifest {
   /** Lowercase dotted identifier; the host prepends `plugin:`. */
@@ -11,6 +12,7 @@ export interface PluginManifest {
   /** Relative archive path to the JavaScript entry file. */
   entry: string;
   capabilities: PluginCapability[];
+  contributions?: UiEntry[];
   /** Exact lowercase ASCII hostnames. Android permits public HTTPS targets on port 443 only. */
   networkDomains?: string[];
   author?: string;

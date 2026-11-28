@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.provider
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,6 +25,12 @@ internal fun PluginSourcePage(source: SourceId, section: String) {
     var error by remember(source) { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         MeloXIosTopBar(title = registry[source]?.displayName ?: source.value)
+        val uiSlot = when (section) {
+            "rankings" -> PluginUiSlot.Explore
+            "library" -> PluginUiSlot.Library
+            else -> PluginUiSlot.Home
+        }
+        PluginUiEntries(uiSlot, owner = source, compact = true)
         error?.let { Text(it, Modifier.padding(20.dp), color = MaterialTheme.colorScheme.error) }
         Box(Modifier.weight(1f)) {
             PluginCatalogBrowser(registry, source.value, "", generation, initialSection = section) { tracks ->

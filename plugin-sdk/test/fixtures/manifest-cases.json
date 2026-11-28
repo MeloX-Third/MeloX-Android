@@ -10,6 +10,9 @@
   },
   "cases": [
     { "name": "valid base", "patch": {}, "valid": true },
+    { "name": "UI capability with extensions entry", "patch": { "capabilities": ["ui"], "contributions": [{ "id": "settings", "title": "Settings", "slot": "extensions" }] }, "valid": true },
+    { "name": "UI capability without contributions", "patch": { "capabilities": ["ui"] }, "valid": false },
+    { "name": "UI contribution without capability", "patch": { "contributions": [{ "id": "settings", "title": "Settings", "slot": "extensions" }] }, "valid": false },
     { "name": "unsupported API", "patch": { "apiVersion": 2 }, "valid": false },
     { "name": "API string", "patch": { "apiVersion": "1" }, "valid": false },
     { "name": "fractional API", "patch": { "apiVersion": 1.2 }, "valid": false },

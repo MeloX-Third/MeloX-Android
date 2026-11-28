@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.settings
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -501,13 +503,17 @@ private fun PluginDetailDialog(
             )
             MeloXIosListRow(
                 title = "用途",
-                detail = if (manifest.isMusicSource) "音乐源" else "第三方回退",
+                detail = when {
+                    manifest.isMusicSource -> "音乐源"
+                    PluginCapability.Resolver in manifest.capabilities -> "第三方回退"
+                    else -> "扩展"
+                },
                 showTopSeparator = true,
             )
             MeloXIosListRow(
                 title = "主音乐源",
                 detail = when {
-                    !manifest.isMusicSource -> "第三方回退"
+                    !manifest.isMusicSource -> "不可设为主音源"
                     selectedSource == manifest.sourceId -> "当前"
                     else -> "设为"
                 },
@@ -530,6 +536,7 @@ private fun PluginDetailDialog(
                     showTopSeparator = true,
                 )
             }
+            PluginUiEntries(PluginUiSlot.PluginDetails, owner = manifest.sourceId, compact = true)
             plugin.error?.let { error ->
                 MeloXIosListRow(
                     title = "运行状态",

@@ -1,5 +1,8 @@
 package com.lladlam.melox.ui.player
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
+
 import com.lladlam.melox.dlna.DlnaSession
 import com.lladlam.melox.miplay.MiPlaySession
 import com.lladlam.melox.usb.MeloXUsbAudioSession
@@ -1790,6 +1793,12 @@ private fun MeloXPageSelector(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
+        PluginUiEntries(
+            PluginUiSlot.PlayerPage,
+            resource = state.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode),
+            compact = true,
+            entryLabel = "扩展",
+        )
                         .size(15.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.82f)),

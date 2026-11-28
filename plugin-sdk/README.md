@@ -167,3 +167,7 @@ NetEase. Downgrading to older MeloX releases is **not** validated as lossless.
 See [protocol](../docs/plugin-system/03-protocol-v1.md),
 [runtime/security](../docs/plugin-system/04-runtime-and-security.md) and
 [remaining work](../docs/plugin-system/remaining-work.md).
+
+### 界面扩展
+
+声明可选的 `ui` 能力与 `contributions`，实现 `uiPage` 和 `uiAction` 后，宿主可渲染插件页面并派发操作。查看 [界面示例](examples/ui/README.md) 和 [V1 界面协议](../docs/plugin-system/03-protocol-v1.md#声明式界面扩展)。

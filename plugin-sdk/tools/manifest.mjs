@@ -43,5 +43,8 @@ export function validateManifest(value) {
     }
     if (!auth.domains.every(host => (value.networkDomains ?? []).includes(host)) || auth.scopes.some(scope => /["\\]/.test(scope))) throw new Error("Invalid OAuth policy");
   }
+  if (value.contributions && new Set(value.contributions.map(entry => entry.id)).size !== value.contributions.length) {
+    throw new Error("Duplicate UI contribution ID");
+  }
   return value;
 }

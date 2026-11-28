@@ -1,3 +1,4 @@
+import type { PluginUiMethods } from "./ui.js";
 /** Version-one JSON transport types. See README for the implemented capability subset. */
 export type AudioQualityTier = "standard" | "high" | "lossless" | "hiResolution" | "immersive" | "master";
 export type Availability = "unknown" | "playable" | "previewOnly" | "loginRequired" |
@@ -77,7 +78,7 @@ export interface CollectionDetail<T> { summary: T; tracks: MusicPage<MusicTrack>
 export interface PlaylistDetail extends CollectionDetail<PlaylistSummary> { memberIds?: string[] }
 export interface HomeFeed { recommendedPlaylists: PlaylistSummary[]; newSongs: MusicTrack[]; rankings: RankingSummary[] }
 
-export interface MusicPlugin {
+export interface MusicPlugin extends PluginUiMethods {
   search?(query: string, page: number, pageSize: number, context: HostContext): Promise<MusicPage<MusicTrack>>;
   resolvePlayback?(track: MusicTrack, quality: AudioQualityTier, context: HostContext): Promise<PlaybackResolution>;
   resolveDownload?(track: MusicTrack, quality: AudioQualityTier, context: HostContext): Promise<PlaybackResolution>;

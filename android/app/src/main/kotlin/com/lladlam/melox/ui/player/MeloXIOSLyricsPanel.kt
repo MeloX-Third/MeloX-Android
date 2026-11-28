@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.player
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import com.lladlam.melox.core.lyrics.precedesLead
 
 import android.content.Context
@@ -465,7 +467,7 @@ fun MeloXIOSLyricsPanel(
 ) {
     val revealHeightPx = with(LocalDensity.current) { controlsRevealHeight.toPx() }
     val revealInteraction = rememberUpdatedState(onInterfaceInteraction)
-    val lyricsModifier = modifier.pointerInput(isInterfaceHidden, revealHeightPx) {
+    val lyricsModifier = Modifier.pointerInput(isInterfaceHidden, revealHeightPx) {
         if (!isInterfaceHidden || revealHeightPx <= 0f) return@pointerInput
         // Observe at Initial so a recognised tap is consumed before a lyric's
         // combinedClickable sees its up event. Down/move stay unconsumed: the
@@ -491,50 +493,55 @@ fun MeloXIOSLyricsPanel(
             }
         }
     }
-    val configuration = LocalConfiguration.current
-    if (allowAutomaticSkyline && configuration.screenWidthDp > configuration.screenHeightDp && MeloXSettingsRuntime.skylineEnabled) {
-        MeloXSkylineLyricsPanel(state, lyricsModifier, onInterfaceInteraction, active)
-        return
-    }
-    when (MeloXSettingsRuntime.lyricsStyle) {
-        MeloXLyricsStyle.AppleMusic -> MeloXAppleMusicLyricsPanel(
-            state,
-            lyricsModifier,
-            isInterfaceHidden,
-            onInterfaceInteraction,
-            onInterfaceVisibilityChange,
-            active,
-            fontScaleMultiplier,
-            edgeFadeTop,
-            edgeFadeBottom,
-            focusPositionOverride,
-            edgeFadeBottomTerminal,
-            edgeBlurMax,
-            scrubPositionMs,
-            shellTransitioning,
-        )
-        MeloXLyricsStyle.SonifyAppleMusic -> MeloXAppleMusicLyricsPanel(
-            state,
-            lyricsModifier,
-            isInterfaceHidden,
-            onInterfaceInteraction,
-            onInterfaceVisibilityChange,
-            active,
-            fontScaleMultiplier = fontScaleMultiplier * 1.12f,
-            edgeFadeTop = if (edgeFadeTop > 0.dp) edgeFadeTop else 32.dp,
-            edgeFadeBottom = edgeFadeBottom,
-            focusPositionOverride = focusPositionOverride ?: 0.12f,
-            edgeFadeBottomTerminal = edgeFadeBottomTerminal,
-            edgeBlurMax = 0.dp,
-            scrubPositionMs = scrubPositionMs,
-            shellTransitioning = shellTransitioning,
-            lineSpacingScale = 1f,
-            rowBlurEnabled = false,
-            focusScaleOverride = 1f,
-            plainHighlight = true,
-        )
-        MeloXLyricsStyle.Eva -> MeloXEvaLyricsPanel(state, lyricsModifier, onInterfaceInteraction, active)
-        MeloXLyricsStyle.TextPV -> MeloXTextPVLyricsPanel(state, lyricsModifier, onInterfaceInteraction, active)
+    Box(modifier) {
+        val configuration = LocalConfiguration.current
+        if (allowAutomaticSkyline && configuration.screenWidthDp > configuration.screenHeightDp && MeloXSettingsRuntime.skylineEnabled) {
+            MeloXSkylineLyricsPanel(state, lyricsModifier.fillMaxSize(), onInterfaceInteraction, active)
+        } else when (MeloXSettingsRuntime.lyricsStyle) {
+            MeloXLyricsStyle.AppleMusic -> MeloXAppleMusicLyricsPanel(
+                state,
+                lyricsModifier.fillMaxSize(),
+                isInterfaceHidden,
+                onInterfaceInteraction,
+                onInterfaceVisibilityChange,
+                active,
+                fontScaleMultiplier,
+                edgeFadeTop,
+                edgeFadeBottom,
+                focusPositionOverride,
+                edgeFadeBottomTerminal,
+                edgeBlurMax,
+                scrubPositionMs,
+                shellTransitioning,
+            )
+            MeloXLyricsStyle.SonifyAppleMusic -> MeloXAppleMusicLyricsPanel(
+                state,
+                lyricsModifier.fillMaxSize(),
+                isInterfaceHidden,
+                onInterfaceInteraction,
+                onInterfaceVisibilityChange,
+                active,
+                fontScaleMultiplier = fontScaleMultiplier * 1.12f,
+                edgeFadeTop = if (edgeFadeTop > 0.dp) edgeFadeTop else 32.dp,
+                edgeFadeBottom = edgeFadeBottom,
+                focusPositionOverride = focusPositionOverride ?: 0.12f,
+                edgeFadeBottomTerminal = edgeFadeBottomTerminal,
+                edgeBlurMax = 0.dp,
+                scrubPositionMs = scrubPositionMs,
+                shellTransitioning = shellTransitioning,
+                lineSpacingScale = 1f,
+                rowBlurEnabled = false,
+                focusScaleOverride = 1f,
+                plainHighlight = true,
+            )
+            MeloXLyricsStyle.Eva -> MeloXEvaLyricsPanel(state, lyricsModifier.fillMaxSize(), onInterfaceInteraction, active)
+            MeloXLyricsStyle.TextPV -> MeloXTextPVLyricsPanel(state, lyricsModifier.fillMaxSize(), onInterfaceInteraction, active)
+        }
+        if (active && !isInterfaceHidden) {
+            PluginUiEntries(PluginUiSlot.Lyrics,
+                resource = state.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode),
+                modifier = Modifier.align(Alignment.TopEnd), compact = true)
+        }
     }
 }
 

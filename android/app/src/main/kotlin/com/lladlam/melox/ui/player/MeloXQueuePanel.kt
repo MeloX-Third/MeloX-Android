@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.player
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -184,6 +186,9 @@ fun MeloXQueuePanel(
     // 两处统一用渐隐遮罩（`queueEdgeFade`，等价 Apple Music 的 container edge fade）：
     // 行在抵达边缘之前就淡成透明，没有硬断面 —— 与歌词页 `lyricsEdgeFade` 同一手法。
     Column(modifier = modifier.fillMaxSize()) {
+        if (interactive && modeControlsVisible) {
+            PluginUiEntries(PluginUiSlot.Queue, resource = state.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode), compact = true)
+        }
         if (showSongHeader && currentEntry != null) {
             QueueSongHeaderSurface(currentEntry)
         }

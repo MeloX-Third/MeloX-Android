@@ -5,7 +5,8 @@ object PluginPermissions {
     fun expands(previous: PluginManifest, next: PluginManifest): Boolean =
         !previous.networkDomains.containsAll(next.networkDomains) ||
             !previous.capabilities.containsAll(next.capabilities) ||
-            previous.authentication != next.authentication
+            previous.authentication != next.authentication ||
+            !previous.contributions.map { it.slot }.containsAll(next.contributions.map { it.slot })
 
     fun describe(manifest: PluginManifest): String = buildString {
         append("API ").append(manifest.apiVersion)
@@ -29,6 +30,7 @@ object PluginPermissions {
         if (PluginCapability.Resolver in manifest.capabilities) {
             append("\n解析器：可返回任意 HTTP(S) 渐进式音频 URL（不要求域名白名单）")
         }
+        if (manifest.contributions.isNotEmpty()) append("\n界面入口：").append(manifest.contributions.map { it.slot.wire }.distinct().joinToString())
         manifest.authentication?.let {
             append("\n认证：").append(it.type)
             append("\n凭据域名：").append(it.domains.sorted().joinToString().ifEmpty { "无" })

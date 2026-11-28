@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.player
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -113,6 +115,7 @@ internal fun MeloXProviderSongActionsOverlay(
     onShowSkyline: (() -> Unit)? = null,
     track: MusicTrack? = null,
     onEditPlaylistTrack: (() -> Unit)? = null,
+    pluginSlot: PluginUiSlot = PluginUiSlot.SongMenu,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -222,6 +225,9 @@ internal fun MeloXProviderSongActionsOverlay(
                             .padding(horizontal = 18.dp, vertical = 18.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
+                        if (target == ProviderSongActionPage.Main) {
+                            PluginUiEntries(pluginSlot, resource = identity, compact = true)
+                        }
                         ProviderActionHeader(
                              track = actionTrack,
                             subtitle = when (target) {

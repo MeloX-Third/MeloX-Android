@@ -1,0 +1,116 @@
+{
+  "id": "org.melox.ui-demo",
+  "name": "MeloX UI Demo",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "index.js",
+  "capabilities": [
+    "search",
+    "playback",
+    "lyrics",
+    "playlists",
+    "playlistWrite",
+    "playlistCreate",
+    "playlistRename",
+    "playlistDelete",
+    "playlistRemoveMember",
+    "playlistReorder",
+    "albums",
+    "artists",
+    "rankings",
+    "homeFeed",
+    "userLibrary",
+    "favorites",
+    "download",
+    "authentication",
+    "ui"
+  ],
+  "authentication": {
+    "type": "none"
+  },
+  "networkDomains": [
+    "httpbingo.org"
+  ],
+  "contributions": [
+    {
+      "id": "extensions",
+      "title": "界面示例 · extensions",
+      "slot": "extensions"
+    },
+    {
+      "id": "pluginDetails",
+      "title": "界面示例 · pluginDetails",
+      "slot": "pluginDetails"
+    },
+    {
+      "id": "services",
+      "title": "界面示例 · services",
+      "slot": "services"
+    },
+    {
+      "id": "search",
+      "title": "界面示例 · search",
+      "slot": "search"
+    },
+    {
+      "id": "home",
+      "title": "界面示例 · home",
+      "slot": "home"
+    },
+    {
+      "id": "explore",
+      "title": "界面示例 · explore",
+      "slot": "explore"
+    },
+    {
+      "id": "library",
+      "title": "界面示例 · library",
+      "slot": "library"
+    },
+    {
+      "id": "songMenu",
+      "title": "界面示例 · songMenu",
+      "slot": "songMenu"
+    },
+    {
+      "id": "playerMenu",
+      "title": "界面示例 · playerMenu",
+      "slot": "playerMenu"
+    },
+    {
+      "id": "playlist",
+      "title": "界面示例 · playlist",
+      "slot": "playlist"
+    },
+    {
+      "id": "album",
+      "title": "界面示例 · album",
+      "slot": "album"
+    },
+    {
+      "id": "artist",
+      "title": "界面示例 · artist",
+      "slot": "artist"
+    },
+    {
+      "id": "lyrics",
+      "title": "界面示例 · lyrics",
+      "slot": "lyrics"
+    },
+    {
+      "id": "queue",
+      "title": "界面示例 · queue",
+      "slot": "queue"
+    },
+    {
+      "id": "navigation",
+      "title": "界面示例 · navigation",
+      "slot": "navigation"
+    },
+    {
+      "id": "playerPage",
+      "title": "界面示例 · playerPage",
+      "slot": "playerPage"
+    }
+  ]
+}

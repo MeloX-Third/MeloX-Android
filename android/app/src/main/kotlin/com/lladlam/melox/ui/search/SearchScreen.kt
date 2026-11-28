@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.search
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import com.lladlam.melox.ui.state.rememberRetainedPageState
 
 import com.lladlam.melox.ui.layout.LocalMeloXListDetail
@@ -743,6 +745,7 @@ fun SearchScreen(
             onBack = { if (query.isNotBlank()) query = "" else onSearchExit() },
             onOpenRecognition = onOpenRecognition,
         )
+        PluginUiEntries(PluginUiSlot.Search, initialQuery = query, compact = true)
         if (enabledPluginProviders.isNotEmpty() || selectedPlugin != null) {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp)) {
                 item {

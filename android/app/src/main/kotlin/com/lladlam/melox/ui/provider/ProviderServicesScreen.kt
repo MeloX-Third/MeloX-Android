@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.provider
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -314,6 +316,7 @@ fun ProviderServicesScreen(
         Spacer(Modifier.size(24.dp))
         ServicesSectionLabel(stringResource(R.string.provider_current_account))
         PluginServiceSection()
+        PluginUiEntries(PluginUiSlot.Services, compact = true)
         MeloXIosGroupedList(surfaceColor = MaterialTheme.colorScheme.surface) {
                 MeloXIosListRow(
                     title = currentSource.displayName,

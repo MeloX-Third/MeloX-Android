@@ -1,5 +1,7 @@
 package com.lladlam.melox.ui.player
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -128,6 +130,7 @@ fun MeloXNowPlayingActionsSheet(
             MeloXProviderSongActionsOverlay(
                 state = state,
                 identity = identity,
+                pluginSlot = PluginUiSlot.PlayerMenu,
                 visible = visible,
                 onDismiss = onDismiss,
                 onNavigateSearch = onNavigateSearch,

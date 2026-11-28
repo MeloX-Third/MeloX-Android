@@ -7,9 +7,12 @@
     "ranking": {"id":"ranking","title":"Ranking","subtitle":"Subtitle","artworkUrl":"https://example.com/r.png"},
     "account": {"id":"account","displayName":"Synthetic","subtitle":"Fixture","avatarUrl":"https://example.com/user.png"},
     "playbackResolution": {"type":"playable","url":"https://example.com/a.flac","headers":{"X-Test":"value"},"actualQuality":"lossless","bitrate":1000000,"format":"flac","expiresAtEpochMs":4102444800000,"credential":"active"},
+    "uiPage": {"title":"Demo","template":"settings","controls":[{"id":"enabled","label":"Enabled","type":"toggle","value":true,"description":"Demo","disabled":false}],"hasMore":false},
+    "uiAction": {"message":"Saved","refresh":true},
     "lyrics": {"isUnsynchronized":false,"lines":[{"timeMs":0,"durationMs":1000,"text":"Text","translation":"Translation","romanization":"Romanization"}]}
   },
   "methods": {
+    "uiPage":"uiPage", "uiAction":"uiAction",
     "search":"searchPage", "rankingTracks":"searchPage",
     "playlists":"playlistPage", "searchPlaylists":"playlistPage", "userPlaylists":"playlistPage",
     "searchAlbums":"albumPage", "savedAlbums":"albumPage",

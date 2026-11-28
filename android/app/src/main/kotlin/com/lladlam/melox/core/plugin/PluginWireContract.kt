@@ -45,6 +45,11 @@ internal object PluginWireContract {
                 array(value, "newSongs", 0, 100, ::track)
                 array(value, "rankings", 0, 100, ::ranking)
             }
+            "uiPage" -> {
+                PluginUiContract.page(value)
+                optional(value, "tracks") { array(value, it, 0, 30, ::track) }
+            }
+            "uiAction" -> PluginUiContract.action(value)
             "createPlaylist" -> playlist(value)
             "accountSummary" -> account(value)
             "authenticationStatus" -> when (text(value, "type", 32)) {

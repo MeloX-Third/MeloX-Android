@@ -1,5 +1,8 @@
 package com.lladlam.melox.ui.player
 
+import com.lladlam.melox.core.plugin.PluginUiSlot
+import com.lladlam.melox.ui.plugin.PluginUiEntries
+
 import android.os.Build
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
@@ -1955,6 +1958,12 @@ internal fun ScenePageSelector(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        PluginUiEntries(
+            PluginUiSlot.PlayerPage,
+            resource = state.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode),
+            compact = true,
+            entryLabel = "扩展",
+        )
         ScenePageButton(
             kind = SceneGlyphKind.Lyrics,
             selected = page == MeloXNowPlayingPage.Lyrics,

@@ -100,3 +100,36 @@ SDK 的 `PluginError` 提供稳定 code。JS 拒绝会返回错误码；未知�
 目录/音乐库/收藏/下载/认证的方法、Manifest 及标准返回类型见
 [能力与认证接入](05-capabilities-and-authentication.md)。宿主检查必需方法后才发布 Provider；
 UI 按声明隐藏未提供的栏目和操作。全部平台字段转换依然由插件完成。
+
+## 声明式界面扩展
+
+使用现有 `.melox-plugin` 包。Manifest 以 `apiVersion: 1` 声明可选 `ui` 能力，并提供 `contributions`。
+
+```json
+{
+  "capabilities": ["ui"],
+  "contributions": [
+    { "id": "connection", "title": "服务器连接", "slot": "extensions" }
+  ]
+}
+```
+
+每个插件最多声明 32 个入口，入口 ID 在插件内唯一。新增 `slot` 会触发升级权限确认。启用后由宿主显示入口，停用或卸载会移除入口和打开的页面。旧插件可以继续使用已有能力。声明 `ui` 的插件需要支持本节的新版宿主。
+
+| `slot` | 宿主位置 |
+| --- | --- |
+| `extensions`, `pluginDetails`, `services` | 设置扩展及其搜索、插件详情、音乐服务 |
+| `search` | 搜索页的插件扩展，进入时带入当前查询词 |
+| `home`, `explore`, `library` | 该插件作为音源时的首页、发现、音乐库 |
+| `songMenu`, `playerMenu` | 该插件曲目的歌曲菜单与播放器更多菜单 |
+| `playlist`, `album`, `artist` | 插件目录中的歌单、专辑、歌手详情 |
+| `lyrics`, `queue` | 该插件当前曲目的歌词与队列面板 |
+| `navigation`, `playerPage` | 主导航内的扩展入口、播放器页面选择器内的扩展入口 |
+
+`uiPage(request, context)` 返回 `UiPage`。请求包含入口 `entry`、当前页面 `page`、从 1 开始的页号 `index`、查询词 `query`。资源入口另附带 `scope`，包含本插件拥有的 `type` 和资源 `id`。首次打开时 `page` 等于入口 ID。`link` 将同插件子页加入返回栈。
+
+`UiPage` 提供 `settings`、`connection`、`collection`、`detail`、`search`、`status` 六种模板。模板共用原生控件渲染器，`search` 另外显示搜索框。每页最多 50 个控件，且控件 ID 在页内唯一。可选 `tracks` 最多 30 条，使用标准歌曲模型。插件声明 `playback` 后可从页面启动其可播放曲目。`hasMore` 控制下一页入口。
+
+控件类型为 `toggle`、`singleChoice`、`multiChoice`、`slider`、`number`、`text`、`secret`、`url`、`button`、`link`、`status` 和 `qr`。选择项使用稳定 ID，URL 控件提交 HTTP(S) 地址，插件通过自己的存储保存业务设置，按现有网络和凭据权限访问服务。`secret` 输入仅在用户提交时传给声明该控件的插件，值不写入页面状态恢复或宿主诊断。
+
+`uiAction(request, context)` 接收同样的页面上下文，加上控件 ID `control` 和用户提交的 `value`。无参数按钮省略 `value`。返回可选的 `message` 和 `refresh`，默认重新加载当前页面。界面 API 只在用户操作对应入口时运行，后台调度、专用登录回调和实时房间同步由独立宿主能力处理。
