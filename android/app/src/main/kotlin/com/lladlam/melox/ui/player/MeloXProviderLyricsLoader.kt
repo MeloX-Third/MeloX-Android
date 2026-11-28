@@ -79,15 +79,19 @@ private const val AutomaticSelectionCacheVersion = 7
 
 internal object MeloXProviderLyricsLoader {
     private const val MaxCachedDocuments = 24
-    private const val TotalLoadTimeoutMs = 45_000L
+    private const val TotalLoadTimeoutMs = 18_000L
 
     /**
-     * How long a line-timed current-provider lyric waits for an authored
-     * word-timed AMLL lyric before falling back. Short on purpose: AMLL mirror
-     * lookups usually answer in well under a second, so this only covers the
-     * common case while keeping playback snappy.
+     * 首屏逐字歌词快速等待窗：若当前音源已返回逐行歌词，最多等待 800 ms 看 AMLL/QQ 逐字是否秒回；
+     * 超时立即先渲染首屏歌词，迟到的逐字歌词走后台 scheduleLateWordTimingUpgrade 无感热升级。
      */
-    private const val AmllWordTimingWindowMs = 5_000L
+    private const val AmllWordTimingWindowMs = 800L
+
+    /** 当前音源本身已带逐字歌词时，仅等待 350 ms 看 AMLL 是否秒回，避免拖慢首屏显示。 */
+    private const val AmllWordTimingFastWindowMs = 350L
+
+    /** B 站多路并发检索单源首屏超时，防止单路慢源拖垮全部。 */
+    private const val BilibiliSourceTimeoutMs = 4_000L
 
     /**
      * How long a slow, already-running source may still deliver word timing
@@ -897,9 +901,9 @@ internal object MeloXProviderLyricsLoader {
                 .getOrNull()?.takeIf { it.lines.isNotEmpty() }
                 ?.let { BilibiliLyricSourceResult("amll", it, track) }
         }
-        val qq = qqResult.await()
-        val amll = amllResult.await()
-        val neteasePrimary = neteasePrimaryResult.await()
+        val qq = withTimeoutOrNull(BilibiliSourceTimeoutMs) { qqResult.await() }
+        val amll = withTimeoutOrNull(BilibiliSourceTimeoutMs) { amllResult.await() }
+        val neteasePrimary = withTimeoutOrNull(BilibiliSourceTimeoutMs) { neteasePrimaryResult.await() }
         val primaryResults = listOfNotNull(amll, qq, neteasePrimary)
         val primaryDocument = selectAutomaticLyrics(
             primaryResults.mapIndexed { priority, result -> AutoLyricCandidate(priority, result.document) },
@@ -1074,11 +1078,13 @@ internal object MeloXProviderLyricsLoader {
                     firstWordTimedCandidate(
                         jobs,
                         orderedSources.filter { it == LyricAutoSource.AmlL },
+                        windowMs = AmllWordTimingFastWindowMs,
                     )
                 } else {
                     firstWordTimedCandidate(
                         jobs,
                         orderedSources.filter { it != LyricAutoSource.Current },
+                        windowMs = AmllWordTimingWindowMs,
                     )
                 }
                 val selectedSource = betterTimed?.first ?: LyricAutoSource.Current
@@ -1258,9 +1264,12 @@ internal object MeloXProviderLyricsLoader {
     private suspend fun firstWordTimedCandidate(
         jobs: Map<LyricAutoSource, Deferred<ResolvedLyrics>>,
         sources: List<LyricAutoSource>,
+        windowMs: Long = AmllWordTimingWindowMs,
     ): Pair<LyricAutoSource, AutoLyricCandidate>? {
         val candidates = mutableListOf<Pair<LyricAutoSource, AutoLyricCandidate>>()
         val availableSources = sources.filter { jobs[it] != null }
+        if (availableSources.isEmpty()) return null
+        val topPrioritySource = availableSources.first()
         val completed = Channel<Pair<LyricAutoSource, ResolvedLyrics>>(Channel.UNLIMITED)
         availableSources.forEach { source ->
             workerScope.launch {
@@ -1270,8 +1279,8 @@ internal object MeloXProviderLyricsLoader {
             }
         }
         try {
-            withTimeoutOrNull(AmllWordTimingWindowMs) {
-                repeat(availableSources.size) {
+            withTimeoutOrNull(windowMs) {
+                for (i in 0 until availableSources.size) {
                     val (source, resolved) = completed.receive()
                     if (hasWordTiming(resolved.document)) {
                         candidates += source to AutoLyricCandidate(
@@ -1279,6 +1288,8 @@ internal object MeloXProviderLyricsLoader {
                             document = resolved.document,
                             binding = resolved.binding,
                         )
+                        // 最高优先级来源（AMLL）已命中逐字歌词，立刻结束等待不再拖慢首屏。
+                        if (source == topPrioritySource) break
                     }
                 }
             }
@@ -1297,11 +1308,11 @@ internal object MeloXProviderLyricsLoader {
     ): ResolvedLyrics {
         val startedAt = SystemClock.elapsedRealtime()
         val timeoutMs = when (source) {
-            LyricAutoSource.AmlL -> 12_000L
-            LyricAutoSource.QQMusic -> 30_000L
+            LyricAutoSource.AmlL -> 6_000L
+            LyricAutoSource.QQMusic -> 12_000L
             LyricAutoSource.Netease,
             LyricAutoSource.Kugou,
-            LyricAutoSource.Current -> 15_000L
+            LyricAutoSource.Current -> 8_000L
         }
         val resolved = runCatching {
             withTimeoutOrNull(timeoutMs) { loadMatchedSource(appContext, snapshot, source) }
