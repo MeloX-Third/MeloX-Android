@@ -15,6 +15,7 @@
 9. [交付文件、核心链路及能力证据表](delivery.md)
 10. [RC 安全审查、签名包、数据策略与设备自动化](rc-acceptance.md)
 11. [能力 SDK／宿主协议一致性核对](sdk-consistency.md)
+12. [音乐源解耦与迁移计划](provider-migration.md)，所有音源统一交付 `.melox-plugin`。
 
 ## 工程背景
 
