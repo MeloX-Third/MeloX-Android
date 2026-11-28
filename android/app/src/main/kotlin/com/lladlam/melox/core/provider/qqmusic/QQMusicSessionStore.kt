@@ -50,6 +50,7 @@ object QQMusicSessionStore {
                 .orEmpty(),
         )
 
+    @Synchronized
     fun write(context: Context, cookie: String, playback: Boolean = false): QQMusicSession {
         val session = parse(cookie)
         require(session.isLoggedIn) { "QQ音乐登录态不完整" }
@@ -61,11 +62,20 @@ object QQMusicSessionStore {
         return session
     }
 
+    @Synchronized
+    fun replaceIfCurrent(context: Context, expected: QQMusicSession, refreshed: QQMusicSession): Boolean {
+        val slot = listOf(false, true).firstOrNull { read(context, it).cookie == expected.cookie }
+            ?: return false
+        write(context, refreshed.cookie, playback = slot)
+        return true
+    }
+
     /**
      * Clears both MeloX's persisted QQ session and QQ Music WebView cookies.
      * Cookie removal is scoped by the names from the stored QQ cookie instead
      * of calling removeAllCookies(), so NetEase and other provider logins survive.
      */
+    @Synchronized
     fun clear(context: Context, clearWebCookies: Boolean = true, playback: Boolean = false) {
         val session = read(context, playback)
         context.applicationContext
