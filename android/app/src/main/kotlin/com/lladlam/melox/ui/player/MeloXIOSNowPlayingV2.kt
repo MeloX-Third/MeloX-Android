@@ -928,13 +928,13 @@ private fun MeloXPageSelectorV3(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CupertinoPageButton(
         PluginUiEntries(
             PluginUiSlot.PlayerPage,
             resource = state.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode),
             compact = true,
             entryLabel = "扩展",
         )
+        CupertinoPageButton(
             kind = CupertinoGlyphKind.Lyrics,
             selected = page == MeloXNowPlayingPage.Lyrics,
             enabled = true,

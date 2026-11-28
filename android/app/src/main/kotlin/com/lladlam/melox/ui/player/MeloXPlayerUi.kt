@@ -1770,6 +1770,12 @@ private fun MeloXPageSelector(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        PluginUiEntries(
+            PluginUiSlot.PlayerPage,
+            resource = state.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode),
+            compact = true,
+            entryLabel = "扩展",
+        )
         MeloXPageButton(
             symbol = MeloXSymbol.Lyrics,
             selected = page == MeloXNowPlayingPage.Lyrics,
@@ -1793,12 +1799,6 @@ private fun MeloXPageSelector(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-        PluginUiEntries(
-            PluginUiSlot.PlayerPage,
-            resource = state.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode),
-            compact = true,
-            entryLabel = "扩展",
-        )
                         .size(15.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.82f)),
