@@ -40,37 +40,58 @@ class KugouApiClient(
         val safePage = page.coerceAtLeast(1)
         val safeSize = pageSize.coerceIn(1, 50)
         if (normalized.isBlank()) return MusicPage(emptyList(), safePage, safeSize, 0)
-        val response = requests.get(
-            path = "/complexsearch/v3/search/song",
-            params = mapOf(
-                "userid" to "0",
-                "area_code" to "1",
-                "appid" to "1005",
-                "dopicfull" to "1",
-                "page" to safePage.toString(),
-                "token" to "0",
-                "privilegefilter" to "0",
-                "requestid" to "0",
-                "pagesize" to safeSize.toString(),
-                "user_labels" to "",
-                "clienttime" to "0",
-                "sec_aggre" to "1",
-                "iscorrection" to "1",
-                "uuid" to "0",
-                "mid" to "0",
-                "keyword" to normalized,
-                "dfid" to "-",
-                "clientver" to "11409",
-                "platform" to "AndroidFilter",
-                "tag" to "",
-            ),
-            headers = mapOf(
-                "x-router" to "complexsearch.kugou.com",
-                "Referer" to "https://kugou.com",
-                "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 9_1 like Mac OS X) AppleWebKit/601.1.46 (KHTML, like Gecko) Version/9.0 Mobile/13B143 Safari/601.1",
-            ),
-            includeDefaults = false,
-        )
+        val response = try {
+            requests.get(
+                baseUrl = "https://songsearch.kugou.com",
+                path = "/song_search_v2",
+                params = mapOf(
+                    "keyword" to normalized,
+                    "page" to safePage.toString(),
+                    "pagesize" to safeSize.toString(),
+                    "userid" to "0",
+                    "clientver" to "",
+                    "platform" to "WebFilter",
+                    "filter" to "2",
+                    "iscorrection" to "1",
+                    "privilege_filter" to "0",
+                    "area_code" to "1",
+                ),
+                includeDefaults = false,
+                sign = false,
+            )
+        } catch (_: IOException) {
+            requests.get(
+                path = "/complexsearch/v3/search/song",
+                params = mapOf(
+                    "userid" to "0",
+                    "area_code" to "1",
+                    "appid" to "1005",
+                    "dopicfull" to "1",
+                    "page" to safePage.toString(),
+                    "token" to "0",
+                    "privilegefilter" to "0",
+                    "requestid" to "0",
+                    "pagesize" to safeSize.toString(),
+                    "user_labels" to "",
+                    "clienttime" to "0",
+                    "sec_aggre" to "1",
+                    "iscorrection" to "1",
+                    "uuid" to "0",
+                    "mid" to "0",
+                    "keyword" to normalized,
+                    "dfid" to "-",
+                    "clientver" to "11409",
+                    "platform" to "AndroidFilter",
+                    "tag" to "",
+                ),
+                headers = mapOf(
+                    "x-router" to "complexsearch.kugou.com",
+                    "Referer" to "https://kugou.com",
+                    "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 9_1 like Mac OS X) AppleWebKit/601.1.46 (KHTML, like Gecko) Version/9.0 Mobile/13B143 Safari/601.1",
+                ),
+                includeDefaults = false,
+            )
+        }
         val data = response.optJSONObject("data") ?: response
         val list = data.optJSONArray("lists")
             ?: data.optJSONArray("list")

@@ -1,5 +1,7 @@
 package com.lladlam.melox.core.provider.kuwo
 
+import android.content.Context
+import com.lladlam.melox.core.audio.MediaStreamDurationProbe
 import com.lladlam.melox.core.lyrics.LyricsDocument
 import com.lladlam.melox.core.music.model.AudioQualityTier
 import com.lladlam.melox.core.music.model.MusicPage
@@ -19,6 +21,7 @@ import com.lladlam.melox.core.music.provider.UserLibraryCapability
 import okhttp3.OkHttpClient
 
 class KuwoProvider(
+    context: Context,
     private val sessionProvider: () -> KuwoSession = { KuwoSession("", "", "") },
     httpClient: OkHttpClient = com.lladlam.melox.core.network.MeloXHttpClient.shared,
 ) : MusicProvider,
@@ -37,7 +40,7 @@ class KuwoProvider(
         MusicCapability.Playlists,
     )
 
-    private val api = KuwoApiClient(httpClient)
+    private val api = KuwoApiClient(httpClient, MediaStreamDurationProbe(context, httpClient)::durationMs)
     private val playlists = KuwoPlaylistClient(sessionProvider, httpClient)
     private val lyricsClient = KuwoLyricsClient(httpClient)
 
