@@ -1,6 +1,7 @@
 package com.lladlam.melox.core.provider.kuwo
 
 import android.util.Log
+import com.lladlam.melox.core.audio.isUnexpectedlyShortStream
 import com.lladlam.melox.core.music.model.AudioQualityTier
 import com.lladlam.melox.core.music.model.MusicAlbumRef
 import com.lladlam.melox.core.music.model.MusicArtistRef
@@ -12,13 +13,16 @@ import com.lladlam.melox.core.music.model.PlaybackResolution
 import com.lladlam.melox.core.music.model.ProviderTrackMetadata
 import com.lladlam.melox.core.music.model.TrackAvailability
 import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import okhttp3.OkHttpClient
 import org.json.JSONArray
 import org.json.JSONObject
 
 /** Native Kuwo provider using the legacy public search/playback endpoints. */
-class KuwoApiClient(
-    httpClient: OkHttpClient = com.lladlam.melox.core.network.MeloXHttpClient.shared,
+internal class KuwoApiClient(
+    httpClient: OkHttpClient,
+    private val streamDurationMs: (String, Map<String, String>) -> Long?,
 ) {
     private val requests = KuwoRequestClient(httpClient)
 
@@ -39,6 +43,7 @@ class KuwoApiClient(
                 "ft" to "music",
                 "itemset" to "web_2013",
                 "client" to "kt",
+                "vipver" to "1",
                 "pn" to (safePage - 1).toString(),
                 "rn" to safeSize.toString(),
                 "encoding" to "utf8",
@@ -69,6 +74,13 @@ class KuwoApiClient(
     ): PlaybackResolution {
         val metadata = track.requireKuwoMetadata()
         val mid = metadata.mid
+        val requestHeaders = mapOf(
+            "User-Agent" to KuwoRequestClient.UserAgent,
+            "Referer" to "http://www.kuwo.cn/",
+            "Accept" to "*/*",
+            "Accept-Encoding" to "identity",
+        )
+        val rejectedUrls = mutableSetOf<String>()
 
         var lastError: IOException? = null
         for (candidate in quality.kuwoPlaybackCandidates()) {
@@ -102,6 +114,16 @@ class KuwoApiClient(
                 Log.w(TAG, "Playback returned no URL: mid=$mid format=${candidate.format}")
                 continue
             }
+            val secure = secureUrl(url)
+            if (secure in rejectedUrls) continue
+            if ((track.durationMs ?: 0L) > 15_000L) {
+                val actualDuration = runInterruptible(Dispatchers.IO) { streamDurationMs(secure, requestHeaders) }
+                if (isUnexpectedlyShortStream(track.durationMs, actualDuration)) {
+                    Log.w(TAG, "Rejected short Kuwo audio: mid=$mid expectedMs=${track.durationMs} actualMs=$actualDuration")
+                    rejectedUrls += secure
+                    continue
+                }
+            }
 
             val requestedCandidate = quality.kuwoPlaybackCandidates().firstOrNull()
             if (candidate != requestedCandidate) {
@@ -109,20 +131,16 @@ class KuwoApiClient(
             }
             Log.i(TAG, "Playback URL resolved: mid=$mid format=${candidate.format} endpoint=${url.redactedEndpoint()}")
             return PlaybackResolution.Playable(
-                url = secureUrl(url),
+                url = secure,
                 requestedQuality = quality,
                 actualQuality = candidate.actualTier,
                 format = candidate.format,
-                requestHeaders = mapOf(
-                    "User-Agent" to KuwoRequestClient.UserAgent,
-                    "Referer" to "http://www.kuwo.cn/",
-                    "Accept" to "*/*",
-                    "Accept-Encoding" to "identity",
-                ),
+                requestHeaders = requestHeaders,
             )
         }
 
-        val message = lastError?.message ?: "酷我音乐没有返回可播放链接"
+        val message = if (rejectedUrls.isNotEmpty()) "酷我音乐只返回了短音频，未找到完整歌曲"
+            else lastError?.message ?: "酷我音乐没有返回可播放链接"
         return PlaybackResolution.Unavailable(message)
     }
 

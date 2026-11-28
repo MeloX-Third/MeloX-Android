@@ -31,6 +31,7 @@ class MeloXApplication : Application() {
         MeloXHttpClient.initialize(this)
         coil3.SingletonImageLoader.setSafe { context -> coil3.ImageLoader.Builder(context).components {
             add(com.lladlam.melox.core.plugin.PluginArtworkFetcher.Guard(context))
+            add(com.lladlam.melox.core.provider.kuwo.KuwoArtworkInterceptor)
             add(com.lladlam.melox.core.plugin.PluginArtworkFetcher.Factory(context))
         }.build() }
         com.lladlam.melox.core.plugin.MeloXPlugins.start(this)

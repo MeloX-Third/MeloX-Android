@@ -9,6 +9,7 @@ import com.lladlam.melox.core.lyrics.LrcLyricsParser
 import com.lladlam.melox.core.lyrics.LyricSource
 import com.lladlam.melox.core.model.SearchSong
 import com.lladlam.melox.core.music.model.AudioQualityTier
+import com.lladlam.melox.core.music.model.MusicPage
 import com.lladlam.melox.core.music.model.audioQualityForBitrate
 import com.lladlam.melox.core.remoteconfig.MeloXHotRules
 import com.lladlam.melox.core.remoteconfig.MeloXHotScripts
@@ -74,7 +75,16 @@ class NeteaseSearchClient(
     suspend fun searchSongs(
         keywords: String,
         limit: Int = 30,
-    ): List<SearchSong> = withContext(Dispatchers.IO) {
+    ): List<SearchSong> = searchSongPage(keywords, page = 1, limit = limit).items
+
+    internal suspend fun searchSongPage(
+        keywords: String,
+        page: Int,
+        limit: Int,
+    ): MusicPage<SearchSong> = withContext(Dispatchers.IO) {
+        val safePage = page.coerceAtLeast(1)
+        // The public search endpoint caps each page at 20 even if a larger limit is sent.
+        val size = limit.coerceIn(1, 20)
         // Signed rules strip known literal suffixes first, then the signed
         // `search.keywords` hook may rewrite whatever is left. Both are optional
         // and fall back to the caller's keyword.
@@ -84,24 +94,34 @@ class NeteaseSearchClient(
             JSONObject().put("keywords", stripped),
         )?.optString("keywords")?.trim()?.takeIf(String::isNotEmpty)
             ?: stripped
-        if (query.isEmpty()) return@withContext emptyList()
+        if (query.isEmpty()) return@withContext MusicPage(emptyList(), safePage, size, 0)
 
         val payload = JSONObject()
-            .put("s", query)
-            .put("type", 1)
-            .put("limit", limit.coerceIn(1, 50))
-            .put("offset", 0)
+            .put("keyword", query)
+            .put("needCorrect", "1")
+            .put("channel", "typing")
+            .put("limit", size)
+            .put("offset", (safePage.toLong() - 1) * size)
+            .put("scene", "normal")
+            .put("total", safePage == 1)
 
-        val response = eapi(
-            uri = "/api/search/get",
-            data = payload,
-        )
+        val uri = "/api/search/song/list/page"
+        // Public catalog request used by LX Music 1.9.2, sent over HTTPS.
+        val request = Request.Builder()
+            .url("https://interface.music.163.com/eapi/batch")
+            .header("Origin", "https://music.163.com")
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/60.0.3112.90 Safari/537.36")
+            .post(FormBody.Builder().add("params", encodeEapi(uri, payload)).build())
+            .build()
+        val response = executeEapi(uri, request)
 
-        val result = response.optJSONObject("result") ?: return@withContext emptyList()
-        val songs = result.optJSONArray("songs") ?: JSONArray()
-        buildList {
+        val result = response.optJSONObject("data") ?: throw IOException("网易云歌曲搜索响应缺少 data")
+        val songs = result.optJSONArray("resources") ?: JSONArray()
+        val items = buildList {
             for (index in 0 until songs.length()) {
-                val song = songs.optJSONObject(index) ?: continue
+                val song = songs.optJSONObject(index)
+                    ?.optJSONObject("baseInfo")
+                    ?.optJSONObject("simpleSongData") ?: continue
                 val id = song.optLong("id", -1L)
                 if (id <= 0L) continue
 
@@ -137,6 +157,10 @@ class NeteaseSearchClient(
                 )
             }
         }
+        val total = result.optLong("totalCount", -1L).takeIf { it >= 0L }
+        val hasMoreByCount = total?.let { safePage.toLong() * size < it } ?: (songs.length() >= size)
+        val hasMore = songs.length() > 0 && result.optBoolean("hasMore", hasMoreByCount)
+        MusicPage(items, safePage, size, total, hasMore)
     }
 
     /**
@@ -162,7 +186,7 @@ class NeteaseSearchClient(
         return audioQualityForBitrate(bitrate)?.let { it to bitrate }
     }
 
-    suspend fun ensureArtwork(songs: List<SearchSong>): List<SearchSong> =
+    suspend fun ensureArtwork(songs: List<SearchSong>, authenticated: Boolean? = null): List<SearchSong> =
         withContext(Dispatchers.IO) {
             if (songs.isEmpty()) return@withContext songs
 
@@ -183,6 +207,7 @@ class NeteaseSearchClient(
                 val response = eapi(
                     uri = "/api/v3/song/detail",
                     data = JSONObject().put("c", songDescriptors.toString()),
+                    authenticated = authenticated,
                 )
                 val details = response.optJSONArray("songs") ?: return@runCatching songs
                 val artworkById = buildMap<Long, String> {
@@ -369,13 +394,7 @@ class NeteaseSearchClient(
         val requestData = JSONObject(data.toString())
             .put("header", header)
             .put("e_r", false)
-        val json = requestData.toString()
-        val digest = md5Hex("nobody${uri}use${json}md5forencrypt")
-        val encryptedPayload = "$uri-36cd479b6b5-$json-36cd479b6b5-$digest"
-        val params = aesEcbEncrypt(
-            encryptedPayload.toByteArray(Charsets.UTF_8),
-            "e82ckenh8dichen8".toByteArray(Charsets.UTF_8),
-        ).toHexUppercase()
+        val params = encodeEapi(uri, requestData)
 
         val path = uri.replace("/api/", "/eapi/")
         val requestBuilder = Request.Builder()
@@ -400,7 +419,20 @@ class NeteaseSearchClient(
         val request = requestBuilder
             .post(FormBody.Builder().add("params", params).build())
             .build()
+        return executeEapi(uri, request)
+    }
 
+    private fun encodeEapi(uri: String, data: JSONObject): String {
+        val json = data.toString()
+        val digest = md5Hex("nobody${uri}use${json}md5forencrypt")
+        val encryptedPayload = "$uri-36cd479b6b5-$json-36cd479b6b5-$digest"
+        return aesEcbEncrypt(
+            encryptedPayload.toByteArray(Charsets.UTF_8),
+            "e82ckenh8dichen8".toByteArray(Charsets.UTF_8),
+        ).toHexUppercase()
+    }
+
+    private fun executeEapi(uri: String, request: Request): JSONObject {
         httpClient.newCall(request).execute().use { response ->
             val body = response.body.string()
             if (!response.isSuccessful) {

@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient
 internal object KuwoProviderRegistration {
     fun create(context: Context, httpClient: OkHttpClient, forPlayback: Boolean = false): KuwoProvider =
         KuwoProvider(
+            context = context,
             sessionProvider = {
                 if (forPlayback) playbackSession(context) else KuwoSessionStore.read(context)
             },

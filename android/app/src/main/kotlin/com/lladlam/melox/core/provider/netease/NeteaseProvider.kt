@@ -73,15 +73,8 @@ class NeteaseProvider(
         pageSize: Int,
     ): MusicPage<MusicTrack> {
         if (page < 1) return MusicPage(emptyList(), 1, pageSize.coerceAtLeast(1), 0)
-        // Current NeteaseSearchClient mirrors the iOS first-page path. Keep it
-        // untouched during the no-behaviour-change migration; pagination can be
-        // delegated to NeteaseUniversalSearchClient when UI starts requesting it.
-        if (page > 1) return MusicPage(emptyList(), page, pageSize.coerceAtLeast(1), null, false)
-        val size = pageSize.coerceIn(1, 50)
-        // The original NetEase SearchScreen enriches missing artwork after search.
-        // Unified search must do the same before mapping into provider-neutral tracks,
-        // otherwise the Compose row receives a blank artwork URL.
-        val songs = searchClient.ensureArtwork(searchClient.searchSongs(query, size)).map { song ->
+        val result = searchClient.searchSongPage(query, page, pageSize)
+        val songs = searchClient.ensureArtwork(result.items, authenticated = false).map { song ->
             MusicTrack(
                 id = MusicResourceId(MusicSource.Netease, song.id.toString()),
                 title = song.name,
@@ -103,10 +96,10 @@ class NeteaseProvider(
         }
         return MusicPage(
             items = songs,
-            page = page,
-            pageSize = size,
-            total = null,
-            hasMore = songs.size >= size,
+            page = result.page,
+            pageSize = result.pageSize,
+            total = result.total,
+            hasMore = result.hasMore,
         )
     }
 
