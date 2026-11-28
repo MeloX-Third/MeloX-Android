@@ -835,7 +835,7 @@ fun MeloXApp(
               .background(MaterialTheme.colorScheme.background)
               .layerBackdrop(pageBackdrop),
       )
-      CompositionLocalProvider(LocalMeloXBackdrop provides pageBackdrop) {
+      CompositionLocalProvider(LocalMeloXBackdrop provides pageBackdrop, com.lladlam.melox.ui.player.LocalMeloXPlaybackState provides playbackState) {
         CompositionLocalProvider(LocalMeloXBackdrop provides playerControlBackdrop) {
             MeloXAudioOutputDialog(
                 visible = playbackState.showOutputPicker,

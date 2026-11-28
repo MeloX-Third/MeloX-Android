@@ -1,6 +1,9 @@
 package com.lladlam.melox.ui.library
 
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.lladlam.melox.playback.PlaybackTrackIdentity
+import com.lladlam.melox.ui.player.LocalMeloXPlaybackState
+import com.lladlam.melox.ui.theme.meloXAccent
 import com.lladlam.melox.ui.state.rememberRetainedPageState
 
 import androidx.compose.material3.TextButton
@@ -2715,6 +2718,26 @@ private fun MeloXPlaylistDetailScreen(
         }
     }
 
+    val playback = LocalMeloXPlaybackState.current
+    val currentTrack = playback?.mediaId?.let(PlaybackTrackIdentity::decode)
+    fun findCurrent(rows: List<SearchSong>): Int {
+        val target = currentTrack ?: return -1
+        fun matches(song: SearchSong): Boolean = (song.providerTrack?.id ?: MusicResourceId(MusicSource.Netease, song.id.toString())) == target
+        val original = playback?.originalQueueIndex ?: -1
+        return original.takeIf { rows.getOrNull(it)?.let(::matches) == true } ?: rows.indexOfFirst(::matches)
+    }
+    val currentIndex = remember(filteredSongs, currentTrack, playback?.originalQueueIndex) { findCurrent(filteredSongs) }
+    val currentUnfilteredIndex = if (currentIndex < 0) remember(orderedSongs, currentTrack, playback?.originalQueueIndex) { findCurrent(orderedSongs) } else -1
+    val gridState = rememberLazyGridState()
+    var locateRequested by remember(initialPlaylist.id) { mutableStateOf(false) }
+    LaunchedEffect(locateRequested, currentIndex) {
+        if (locateRequested && currentIndex >= 0) {
+            // The grid starts with the full-width playlist hero.
+            gridState.scrollToItem(currentIndex + 1)
+            locateRequested = false
+        }
+    }
+
     // ==========================================
     // 1. 下拉懸停搜索欄：核心物理阻力與動畫狀態
     // ==========================================
@@ -2864,6 +2887,9 @@ private fun MeloXPlaylistDetailScreen(
             ) {
                 MeloXPlaylistToolbar(
                     foreground = foreground,
+                    onLocateCurrent = if (!isAlbum && (currentIndex >= 0 || currentUnfilteredIndex >= 0)) {
+                        { if (currentIndex < 0) searchQuery = ""; locateRequested = true }
+                    } else null,
                     onBack = onBack,
                     onShare = {
                         if (providerAlbum != null) {
@@ -2955,7 +2981,7 @@ private fun MeloXPlaylistDetailScreen(
                             it.padding(top = 122.dp)
                         }
                     },
-                state = rememberLazyGridState(),
+                state = gridState,
                 contentPadding = PaddingValues(
                     start = if (detailWindow.supportsTwoPane) detailWindow.gutter else 0.dp,
                     end = if (detailWindow.supportsTwoPane) detailWindow.gutter else 0.dp,
@@ -3113,7 +3139,7 @@ private fun MeloXPlaylistDetailScreen(
                     }
                     else -> gridItemsIndexed(
                         items = filteredSongs,
-                        key = { _, song -> song.id },
+                        key = { index, song -> "playlist-track-$index-${song.id}" },
                     ) { index, song ->
                         MeloXPlaylistTrackRow(
                             song = song,
@@ -3121,11 +3147,13 @@ private fun MeloXPlaylistDetailScreen(
                             foreground = foreground,
                             showMore = true,
                             isAlbum = isAlbum,
+                            isCurrent = !isAlbum && index == currentIndex,
                             onClick = {
                                 PlaybackCommands.playQueue(
                                     context = context,
                                     songs = filteredSongs,
                                     selectedSongId = song.id,
+                                    selectedOccurrence = index,
                                     onFailure = { errorMessage = it.message ?: "播放失败" },
                                     playlistId = cloudPlaylistId,
                                 )
@@ -3458,6 +3486,7 @@ private fun MeloXPlaylistToolbar(
     onShare: () -> Unit,
     showMore: Boolean = true,
     onMore: () -> Unit,
+    onLocateCurrent: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -3479,6 +3508,9 @@ private fun MeloXPlaylistToolbar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            onLocateCurrent?.let { locate ->
+                TextButton(onClick = locate) { Text(stringResource(R.string.library_locate_playing), color = foreground) }
+            }
             MeloXGlassCircleButton(
                 foreground = foreground,
                 size = 44.dp,
@@ -3755,12 +3787,14 @@ private fun MeloXPlaylistTrackRow(
     foreground: Color,
     showMore: Boolean = true,
     isAlbum: Boolean = false,
+    isCurrent: Boolean = false,
     onClick: () -> Unit,
     onMore: () -> Unit,
     onPlayNext: () -> Unit,
     onPlayLast: () -> Unit,
     endAction: MeloXSwipeAction?,
 ) {
+    val titleColor = if (isCurrent) meloXAccent(if (foreground == Color.White) Color.Black else Color.White) else foreground
     MeloXSwipeActionRow(
         startActions = listOf(
             MeloXSwipeAction(stringResource(R.string.player_play_next), MeloXSymbol.Next, Color(0xFF8E5AF7), onPlayNext),
@@ -3792,7 +3826,7 @@ private fun MeloXPlaylistTrackRow(
                 Text(
                     text = song.name,
                     modifier = Modifier.weight(1f),
-                    color = foreground,
+                    color = titleColor,
                     fontSize = 17.sp,
                     lineHeight = 22.sp,
                     maxLines = 2,
@@ -3815,7 +3849,7 @@ private fun MeloXPlaylistTrackRow(
                 ) {
                     Text(
                         text = song.name,
-                        color = foreground,
+                        color = titleColor,
                         fontSize = 17.sp,
                         lineHeight = 22.sp,
                         maxLines = 1, // 性能优化：强制单行

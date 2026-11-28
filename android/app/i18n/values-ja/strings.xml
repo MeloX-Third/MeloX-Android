@@ -1638,4 +1638,5 @@
     <string name="settings_accent_color">アクセントカラー</string>
     <string name="settings_accent_default">既定に戻す</string>
     <string name="settings_accent_apply">適用</string>
+    <string name="library_locate_playing">再生中の曲へ</string>
 </resources>

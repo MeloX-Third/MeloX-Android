@@ -1636,4 +1636,5 @@
     <string name="settings_accent_color">主題色</string>
     <string name="settings_accent_default">恢復預設</string>
     <string name="settings_accent_apply">套用</string>
+    <string name="library_locate_playing">定位播放中</string>
 </resources>

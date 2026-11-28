@@ -147,6 +147,8 @@ internal fun meloXSkylineCanRender(page: MeloXNowPlayingPage, twoPane: Boolean):
     MeloXNowPlayingPage.Queue -> false
 }
 
+internal val LocalMeloXPlaybackState = androidx.compose.runtime.staticCompositionLocalOf<MeloXPlaybackUiState?> { null }
+
 enum class MeloXQueueOrigin { Base, Manual }
 
 data class MeloXQueueEntry(
@@ -186,6 +188,8 @@ class MeloXPlaybackUiState internal constructor(private val appContext: Context)
      */
     private val heartModeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    internal var originalQueueIndex by mutableIntStateOf(-1)
+        private set
     var mediaId by mutableStateOf<String?>(null)
         private set
     var title by mutableStateOf("")
@@ -414,7 +418,8 @@ class MeloXPlaybackUiState internal constructor(private val appContext: Context)
         val extras = metadata.extras ?: itemExtras
         val providerSource = PlaybackTrackIdentity.fromMediaItem(item)?.sourceId?.builtIn
 
-        mediaId = item?.mediaId
+        originalQueueIndex = itemExtras?.getInt(PlaybackCommands.QUEUE_ORIGINAL_INDEX_KEY, -1) ?: -1
+        mediaId = item.mediaId
         val originalTitle = extras?.getString("melox.system.original_title")
         val originalArtist = extras?.getString("melox.system.original_artist")
         val rawTitle = originalTitle ?: metadata.title?.toString().orEmpty()
@@ -607,6 +612,7 @@ class MeloXPlaybackUiState internal constructor(private val appContext: Context)
     private fun clearMediaState(player: Player) {
         cancelPendingMediaClear()
         MeloXPlaybackModeRuntime.heartModeActive = false
+        originalQueueIndex = -1
         mediaId = null
         title = ""
         artist = ""

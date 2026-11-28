@@ -51,6 +51,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -979,8 +980,8 @@ private fun PluginSearchResults(
 ) {
     val context = LocalContext.current
     val state = rememberLazyListState()
-    PluginCatalogBrowser(registry, sourceValue, query, generation) { tracks ->
-        ProviderSearchSongResults(state, tracks, emptyList(), true) { index ->
+    PluginCatalogBrowser(registry, sourceValue, query, generation) { tracks, isPlaylist ->
+        ProviderSearchSongResults(state, tracks, emptyList(), true, locatePlaying = isPlaylist) { index ->
             ProviderPlaybackCommands.playQueueAt(context, tracks, index)
         }
     }
@@ -1319,16 +1320,34 @@ internal fun ProviderSearchSongResults(
     values: List<MusicTrack>,
     failures: List<UnifiedMusicService.SearchFailure>,
     showSource: Boolean,
+    locatePlaying: Boolean = false,
     onPlay: (Int) -> Unit,
 ) {
     val context = LocalContext.current
     val providerDownloads = remember(context) { MeloXProviderDownloadStore.get(context) }
     val providers = remember(context) { MeloXMusicProviders.create(context) }
     var actionTrack by remember { mutableStateOf<MusicTrack?>(null) }
+    val playback = com.lladlam.melox.ui.player.LocalMeloXPlaybackState.current
+    val playing = if (locatePlaying) playback?.mediaId?.let(com.lladlam.melox.playback.PlaybackTrackIdentity::decode) else null
+    val occurrence = playback?.originalQueueIndex
+    val playingIndex = remember(values, playing, occurrence) {
+        if (playing == null) -1 else occurrence?.takeIf { values.getOrNull(it)?.id == playing }
+            ?: values.indexOfFirst { it.id == playing }
+    }
+    val scope = rememberCoroutineScope()
     LazyColumn(
         state = state,
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = MeloXBottomContentClearance),
     ) {
+        if (playingIndex >= 0) {
+            stickyHeader(key = "locate-playing") {
+                Surface {
+                    TextButton(onClick = {
+                        scope.launch { state.scrollToItem(playingIndex + 1 + if (failures.isEmpty()) 0 else 1) }
+                    }) { Text(stringResource(R.string.library_locate_playing)) }
+                }
+            }
+        }
         if (failures.isNotEmpty()) {
             item {
                 Text(
@@ -1346,6 +1365,7 @@ internal fun ProviderSearchSongResults(
             itemsIndexed(values, key = { index, track -> "provider:$index:${track.id.sourceId.value}:${track.id.value}" }) { index, track ->
                 SearchSwipeSongRow(
                     song = MeloXLegacyUiBridge.track(track),
+                    isCurrent = index == playingIndex,
                     onPlay = { onPlay(index) },
                     onMore = { actionTrack = track },
                     endAction = if (providers[track.id.sourceId]?.let { it is com.lladlam.melox.core.music.provider.DownloadCapability && (it.sourceId.builtIn != null || it.supports(com.lladlam.melox.core.music.provider.MusicCapability.Download)) } == true) MeloXSwipeAction(stringResource(R.string.search_download_local), MeloXSymbol.Download, Color(0xFF0EA5E9)) {
@@ -1461,6 +1481,7 @@ private fun SearchSwipeSongRow(
     onMore: (() -> Unit)?,
     endAction: MeloXSwipeAction?,
     sourceLabel: String? = null,
+    isCurrent: Boolean = false,
 ) {
     val context = LocalContext.current
     MeloXSwipeActionRow(
@@ -1480,7 +1501,7 @@ private fun SearchSwipeSongRow(
             AsyncImage(song.artworkUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(song.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                Text(song.name, color = if (isCurrent) com.lladlam.melox.ui.theme.meloXAccent() else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                 Text(
                     buildList {
                         // Source first, then the artist: aggregation picks one

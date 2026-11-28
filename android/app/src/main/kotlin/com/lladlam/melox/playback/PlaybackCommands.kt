@@ -66,23 +66,26 @@ object PlaybackCommands {
         heartMode: Boolean = false,
         onFailure: ((Throwable) -> Unit)? = null,
         playlistId: Long? = null,
+        selectedOccurrence: Int? = null,
     ) {
         // Every queue played from the app feeds the Sonify-style recommendation
         // pool. A playlist/album play or shuffle therefore contributes all of
         // its songs, not only the selected row.
         MeloXHomeRecommendationPool.appendSongs(songs)
         val appContext = context.applicationContext
-        val selectedProviderTrack = songs.firstOrNull { it.id == selectedSongId }?.providerTrack
+        val selectedIndex = selectedOccurrence?.takeIf { songs.getOrNull(it)?.id == selectedSongId }
+            ?: songs.indexOfFirst { it.id == selectedSongId }
+        val selectedProviderTrack = songs.getOrNull(selectedIndex)?.providerTrack
         if (selectedProviderTrack != null) {
             val providerTracks = songs.mapNotNull(SearchSong::providerTrack)
             if (providerTracks.isEmpty()) {
                 MeloXPlaybackNotice.show(appContext, MeloXPlaybackNotice.EMPTY_QUEUE)
                 return
             }
-            ProviderPlaybackCommands.playQueue(
+            ProviderPlaybackCommands.playQueueAt(
                 context = context,
                 tracks = providerTracks,
-                selectedTrackId = selectedProviderTrack.id,
+                selectedIndex = songs.take(selectedIndex).count { it.providerTrack != null },
                 startPositionMs = startPositionMs,
                 onFailure = onFailure,
             )
@@ -106,7 +109,7 @@ object PlaybackCommands {
                 dispatchNeteaseQueue(
                     context = context,
                     songs = songs,
-                    selectedSongId = selectedSongId,
+                    selectedIndex = selectedIndex,
                     startPositionMs = startPositionMs,
                     heartMode = heartMode,
                     onFailure = onFailure,
@@ -119,7 +122,7 @@ object PlaybackCommands {
         dispatchNeteaseQueue(
             context = context,
             songs = songs,
-            selectedSongId = selectedSongId,
+            selectedIndex = selectedIndex,
             startPositionMs = startPositionMs,
             heartMode = heartMode,
             onFailure = onFailure,
@@ -131,7 +134,7 @@ object PlaybackCommands {
     private fun dispatchNeteaseQueue(
         context: Context,
         songs: List<SearchSong>,
-        selectedSongId: Long,
+        selectedIndex: Int,
         startPositionMs: Long,
         heartMode: Boolean,
         onFailure: ((Throwable) -> Unit)?,
@@ -160,8 +163,7 @@ object PlaybackCommands {
                     }
                     val downloads = MeloXDownloadStore.get(appContext)
                     val offline = !MeloXNetworkAvailability.isOnline(appContext)
-                    val sourceStartIndex = sourceSongs.indexOfFirst { it.id == selectedSongId }
-                        .takeIf { it >= 0 } ?: 0
+                    val sourceStartIndex = selectedIndex.takeIf { it in sourceSongs.indices } ?: 0
                     val playable = sourceSongs.mapIndexed { index, song -> index to song }
                         .let { indexed ->
                             if (offline) indexed.filter { (_, song) -> downloads.contains(song.id) }

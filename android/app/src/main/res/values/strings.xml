@@ -1678,4 +1678,5 @@
     <string name="settings_accent_color">Accent color</string>
     <string name="settings_accent_default">Restore default</string>
     <string name="settings_accent_apply">Apply</string>
+    <string name="library_locate_playing">Locate playing</string>
 </resources>

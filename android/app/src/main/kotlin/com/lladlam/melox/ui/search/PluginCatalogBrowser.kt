@@ -32,7 +32,7 @@ internal fun PluginCatalogBrowser(
     query: String,
     generation: Long,
     initialSection: String = "songs",
-    trackContent: @Composable (List<MusicTrack>) -> Unit,
+    trackContent: @Composable (List<MusicTrack>, Boolean) -> Unit,
 ) {
     val provider = SourceId.parse(sourceValue)?.let { registry[it] }
     key(sourceValue, generation) {
@@ -48,7 +48,7 @@ private fun PluginCatalogContent(
     generation: Long,
     initialSection: String,
     provider: MusicProvider?,
-    trackContent: @Composable (List<MusicTrack>) -> Unit,
+    trackContent: @Composable (List<MusicTrack>, Boolean) -> Unit,
 ) {
     var section by rememberSaveable(sourceValue, initialSection) { mutableStateOf(initialSection) }
     var collection by rememberRetainedPageState(sourceValue, section, query) { mutableStateOf<Any?>(null) }
@@ -389,6 +389,6 @@ private fun PluginCatalogContent(
             }
         }
         if (!loading && error == null && rows.isEmpty() && tracks.isEmpty()) Text("暂无内容", Modifier.padding(20.dp))
-        if (tracks.isNotEmpty()) Box(Modifier.weight(1f)) { trackContent(tracks) }
+        if (tracks.isNotEmpty()) Box(Modifier.weight(1f)) { trackContent(tracks, collection is MusicPlaylistSummary) }
     }
 }

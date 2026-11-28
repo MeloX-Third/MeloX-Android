@@ -33,8 +33,8 @@ internal fun PluginSourcePage(source: SourceId, section: String) {
         PluginUiEntries(uiSlot, owner = source, compact = true)
         error?.let { Text(it, Modifier.padding(20.dp), color = MaterialTheme.colorScheme.error) }
         Box(Modifier.weight(1f)) {
-            PluginCatalogBrowser(registry, source.value, "", generation, initialSection = section) { tracks ->
-                ProviderSearchSongResults(values = tracks, failures = emptyList(), showSource = true, onPlay = { index ->
+            PluginCatalogBrowser(registry, source.value, "", generation, initialSection = section) { tracks, isPlaylist ->
+                ProviderSearchSongResults(values = tracks, failures = emptyList(), showSource = true, locatePlaying = isPlaylist, onPlay = { index ->
                     ProviderPlaybackCommands.playQueueAt(context, tracks, index, onFailure = { error = "播放失败" })
                 })
             }
