@@ -27,6 +27,18 @@ object MeloXMediaCache {
         active.keys.toList().forEach(active::removeResource)
     }
 
+    /** 清理指定曲目可能截断或损坏的缓存分片，用于播放中途断流后的自愈重建。 */
+    fun removeMatching(context: Context, fragments: Collection<String>) {
+        val valid = fragments.filter(String::isNotBlank)
+        if (valid.isEmpty()) return
+        val active = get(context)
+        active.keys.toList().forEach { key ->
+            if (valid.any { part -> key.contains(part) }) {
+                runCatching { active.removeResource(key) }
+            }
+        }
+    }
+
     fun limitBytes(context: Context): Long {
         val stored = context.applicationContext
             .getSharedPreferences("melox_app_settings", Context.MODE_PRIVATE)

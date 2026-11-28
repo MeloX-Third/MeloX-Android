@@ -130,7 +130,10 @@ class NeteasePlaybackResolver(
                 if (quality == MusicQualityRuntime.selected) {
                     CrossProviderPlaybackRuntime.clear(songId)
                 }
-                ResolvedRequest(Uri.parse(source.url))
+                ResolvedRequest(
+                    uri = Uri.parse(source.url),
+                    expiresAtEpochMs = System.currentTimeMillis() + DEFAULT_NETEASE_URL_TTL_MS,
+                )
             } catch (error: NeteasePlaybackUnavailableException) {
                 val track = fallbackTrack(songId, fallbackRequest)
                 // The terminal NetEase failure covers membership/rights/region,
@@ -237,6 +240,23 @@ class NeteasePlaybackResolver(
         resolveSongRequest(songId, quality, fallbackRequest(uri, songId, quality))
     }
 
+    /** 作废指定曲目的已缓存播放直链与失败冷却，供中途断流/过期自愈重连时强制拉取新链接。 */
+    fun invalidate(uri: Uri?) {
+        uri ?: return
+        if (ProviderPlaybackResolver.isProviderTrackUri(uri)) {
+            providerDelegate()?.invalidate(uri)
+            return
+        }
+        if (uri.scheme != MELOX_SCHEME || uri.host != SONG_HOST) return
+        val songId = uri.lastPathSegment?.toLongOrNull() ?: return
+        synchronized(cacheLock) {
+            resolvedUris.keys.removeAll { it.songId == songId }
+            recentFailures.keys.removeAll { it.songId == songId }
+        }
+        inFlight.keys.removeAll { it.songId == songId }
+        Log.i(TAG, "Invalidated cached playback URL for song=$songId")
+    }
+
     private fun resolveKey(
         songId: Long,
         quality: MusicQuality,
@@ -337,6 +357,9 @@ class NeteasePlaybackResolver(
 
         /** 「音源不可用」失败的冷却时长：重试期间不重复跑整条降级链。 */
         private const val FAILURE_COOLDOWN_MS = 15_000L
+
+        /** 网易云标准播放链接安全有效期（12 分钟），防止旧链接在中途 Range 续读时 403 断流。 */
+        private const val DEFAULT_NETEASE_URL_TTL_MS = 12 * 60 * 1000L
 
         private fun playbackCacheKey(
             songId: Long,
