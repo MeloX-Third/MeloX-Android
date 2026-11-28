@@ -177,8 +177,13 @@ fun MeloXTheme(
     val fontFamily = rememberMeloXFontFamily(context)
     val hotColors by MeloXHotStyles.colors.collectAsState()
     val baseScheme = if (darkTheme) DarkColors else LightColors
-    val colorScheme = remember(baseScheme, hotColors, darkTheme) {
-        baseScheme.withHotOverrides(hotColors, darkTheme)
+    val customAccent = parseMeloXAccent(MeloXSettingsRuntime.accentHex)
+    val colorScheme = remember(baseScheme, hotColors, darkTheme, customAccent) {
+        val scheme = baseScheme.withHotOverrides(hotColors, darkTheme)
+        if (customAccent == null) scheme else {
+            val primary = accessibleMeloXAccent(customAccent, scheme.surface)
+            scheme.copy(primary = primary, onPrimary = if (primary.luminance() > .179f) Color.Black else Color.White)
+        }
     }
     SideEffect {
         context.findActivity()?.window?.let { window ->

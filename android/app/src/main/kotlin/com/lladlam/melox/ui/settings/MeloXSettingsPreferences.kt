@@ -124,6 +124,7 @@ object MeloXSettingsRuntime {
         internal set
     var performanceOverlayEnabled by mutableStateOf(false)
         internal set
+    var accentHex by mutableStateOf("")
     var themeMode by mutableStateOf(MeloXThemeMode.System)
         internal set
     var pageAppearance by mutableStateOf(MeloXPageAppearance.MeloX)
@@ -488,6 +489,7 @@ object MeloXSettingsRuntime {
     fun initializeCritical(context: Context) {
         val app = context.applicationContext
         loadSplitScreenSettings(app)
+        accentHex = MeloXSettingsPreferences.string(app, "theme_accent", "")
         themeMode = runCatching {
             MeloXThemeMode.valueOf(MeloXSettingsPreferences.string(app, "theme_mode", MeloXThemeMode.System.name))
         }.getOrDefault(MeloXThemeMode.System)
@@ -519,6 +521,7 @@ object MeloXSettingsRuntime {
         val app = context.applicationContext
         loadSplitScreenSettings(app)
         performanceOverlayEnabled = MeloXSettingsPreferences.boolean(app, "developer_performance_overlay", false)
+        accentHex = MeloXSettingsPreferences.string(app, "theme_accent", "")
         themeMode = runCatching {
             MeloXThemeMode.valueOf(MeloXSettingsPreferences.string(app, "theme_mode", MeloXThemeMode.System.name))
         }.getOrDefault(MeloXThemeMode.System)
@@ -1065,6 +1068,7 @@ object MeloXSettingsPreferences {
         when (key) {
             "general_split_navigation_position" -> MeloXSettingsRuntime.splitNavigationPosition = MeloXSplitChromePosition.fromPreference(value)
             "general_split_mini_player_position" -> MeloXSettingsRuntime.splitMiniPlayerPosition = MeloXSplitChromePosition.fromPreference(value)
+            "theme_accent" -> MeloXSettingsRuntime.accentHex = value
             "theme_mode" -> MeloXSettingsRuntime.themeMode = runCatching {
                 MeloXThemeMode.valueOf(value)
             }.getOrDefault(MeloXThemeMode.System)

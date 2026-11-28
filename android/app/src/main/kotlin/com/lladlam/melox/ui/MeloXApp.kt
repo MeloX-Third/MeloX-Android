@@ -159,7 +159,7 @@ import com.lladlam.melox.ui.glass.MeloXGlassPipelinePrewarm
 import com.lladlam.melox.ui.glass.MeloXSymbol
 import com.lladlam.melox.ui.glass.MeloXSymbolIcon
 import com.lladlam.melox.ui.glass.MeloXSymbolVariant
-import com.lladlam.melox.ui.glass.MeloXSystemColors
+import com.lladlam.melox.ui.theme.meloXAccent
 import com.lladlam.melox.ui.glass.MeloXGlassDialog
 import com.lladlam.melox.ui.glass.MeloXGlassButton
 import com.lladlam.melox.ui.glass.MeloXGlassButtonStyle
@@ -2574,7 +2574,7 @@ private fun MeloXBottomChrome(
                 // ⚠ 与 selectionTint 的 alpha 绑定（终色 = (1−a)×源 + a×涂层）。
                 // 「涂料下沉」试验（tint 搬进捕获层、真机无差异）已回退。
                 // 只影响 L2 捕获层（水珠透出的红）；毛玻璃模式 / 收缩态圆心标仍用
-                // MeloXSystemColors.Red。
+                // meloXAccent()。
                 val accentColor = Color(0xFFFF0000)
 
                 // ══ Layer 1：可见面板（BiliNext 原样）════════════════════════════
@@ -2679,7 +2679,7 @@ private fun MeloXBottomChrome(
                             color = if (selectedTab == AppTab.Search) {
                                 MaterialTheme.colorScheme.onSurface
                             } else {
-                                MeloXSystemColors.Red
+                                meloXAccent()
                             },
                             selected = selectedTab != AppTab.Search,
                         )
@@ -2836,7 +2836,7 @@ private fun MeloXBottomChrome(
                     ),
                     // ⚠ 搜索键的字形同样不能写死 —— 它读的是同一个被插值的 scheme。
                     color = if (selectedTab == AppTab.Search) {
-                        MeloXSystemColors.Red
+                        meloXAccent()
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
@@ -2884,7 +2884,7 @@ private fun MeloXVerticalNavigation(
             ) else tabs + AppTab.Search).distinct().forEach { tab ->
                 if (tab == AppTab.Search && compactProgress > .5f && reserveMiniSlot) Spacer(Modifier.height(56.dp))
                 val active = tab == selectedTab
-                val color = if (active) MeloXSystemColors.Red else MaterialTheme.colorScheme.onSurface
+                val color = if (active) meloXAccent() else MaterialTheme.colorScheme.onSurface
                 Column(
                     Modifier.fillMaxWidth().height(56.dp)
                         .semantics { selected = active }
@@ -2940,7 +2940,7 @@ private fun RowScope.RootTabButton(
     val desiredForeground = when {
         colorFilterTint != null -> colorFilterTint
         // `selectedTint`（毛玻璃模式的强调色）与 `selected` 同色、同动画路径。
-        selected || selectedTint -> MeloXSystemColors.Red
+        selected || selectedTint -> meloXAccent()
         // 算法补偿色：iOS 风格「内容穿透指示器」的可读性补偿。
         contentColor != null -> contentColor
         // 回到 `colorScheme.onSurface` —— 外层 `BottomBarToneTheme` 已经把整套配色

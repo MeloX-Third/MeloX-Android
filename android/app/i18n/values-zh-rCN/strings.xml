@@ -1633,4 +1633,7 @@
     <string name="settings_mcp_copy_token">复制 Token</string>
     <string name="settings_mcp_copied">Token 已复制</string>
     <string name="settings_mcp_failed">MCP 启动失败：%1$s</string>
+    <string name="settings_accent_color">主题色</string>
+    <string name="settings_accent_default">恢复默认</string>
+    <string name="settings_accent_apply">应用</string>
 </resources>

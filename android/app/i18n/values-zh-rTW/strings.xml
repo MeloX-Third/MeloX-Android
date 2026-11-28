@@ -1633,4 +1633,7 @@
     <string name="provider_chksz_configured">CHKSZ API Key 已設定</string>
     <string name="provider_chksz_title">網易雲 SVIP 音源解析</string>
     <string name="provider_chksz_body">透過 api.chksz.com 的網易雲 / QQ 音樂 / 酷狗解析能力取得音源。在 api.chksz.com 註冊並登入後複製個人 API Key（目前僅對 LinuxDo 使用者開放註冊）。Key 只存在本機，不參與 MeloX 雲端控制。</string>
+    <string name="settings_accent_color">主題色</string>
+    <string name="settings_accent_default">恢復預設</string>
+    <string name="settings_accent_apply">套用</string>
 </resources>

@@ -243,7 +243,7 @@ private data class SettingsSection(val title: String, val items: List<SettingsIt
 
 private val SettingsSections = listOf(
     SettingsSection("应用", listOf(
-        SettingsItem(SettingsRoute.General, "语言、主题、启动行为与链接处理", "⚙", "语言 language 歌词语言 lyrics language 简体 繁體 English 日本語 한국어 Türkçe 主题 浅色 深色 跟随系统 默认页面 剪贴板 分屏 split screen 双栏 底部栏 导航栏 迷你播放器 miniplayer 左下 右下 左边 右边 左上 右上"),
+        SettingsItem(SettingsRoute.General, "语言、主题、启动行为与链接处理", "⚙", "语言 language 歌词语言 lyrics language 简体 繁體 English 日本語 한국어 Türkçe 主题 主题色 accent 浅色 深色 跟随系统 默认页面 剪贴板 分屏 split screen 双栏 底部栏 导航栏 迷你播放器 miniplayer 左下 右下 左边 右边 左上 右上"),
         SettingsItem(SettingsRoute.PlayerAppearance, "背景、封面动画与屏幕常亮", "✦", "模糊 色彩 饱和度 封面 自动锁屏"),
         SettingsItem(SettingsRoute.Content, "地区、歌单信息和发现内容", "▦", "华语 欧美 韩国 日本 播放量 内容"),
         SettingsItem(SettingsRoute.Playback, "音质、播放行为与自动混音", "♫", "高品质 无损 上一首 页面记忆 心动模式 交叉淡化 播放"),
@@ -468,7 +468,7 @@ private fun SettingsAccountCard(
     onOpenAccount: (() -> Unit)?,
     onOpenServices: (() -> Unit)?,
 ) {
-    val accent = com.lladlam.melox.ui.glass.MeloXSystemColors.Red
+    val accent = com.lladlam.melox.ui.theme.meloXAccent()
     Text(
         stringResource(R.string.accessibility_account),
         modifier = Modifier.padding(start = 8.dp, bottom = 8.dp),
@@ -516,7 +516,7 @@ private fun SettingsAccountCard(
 
 @Composable
 private fun SettingsSectionCard(section: SettingsSection, onOpen: (SettingsRoute) -> Unit) {
-    val accent = com.lladlam.melox.ui.glass.MeloXSystemColors.Red
+    val accent = com.lladlam.melox.ui.theme.meloXAccent()
     MeloXIosGroupedList(surfaceColor = MaterialTheme.colorScheme.surface) {
         section.items.forEach { item ->
             MeloXIosListRow(
@@ -2358,13 +2358,13 @@ private fun LyricsSettings(context: android.content.Context, source: MusicSource
     MeloXIosGroupedList(surfaceColor = MaterialTheme.colorScheme.surface) {
         MeloXIosListRow(
             title = stringResource(R.string.settings_route_system_playback),
-            chevronTint = com.lladlam.melox.ui.glass.MeloXSystemColors.Red,
+            chevronTint = com.lladlam.melox.ui.theme.meloXAccent(),
             onClick = { MeloXSettingsDetailActivity.launch(context, SettingsRoute.SystemPlayback, source) },
             showTopSeparator = false,
         )
         MeloXIosListRow(
             title = stringResource(R.string.settings_route_floating),
-            chevronTint = com.lladlam.melox.ui.glass.MeloXSystemColors.Red,
+            chevronTint = com.lladlam.melox.ui.theme.meloXAccent(),
             onClick = { MeloXSettingsDetailActivity.launch(context, SettingsRoute.FloatingLyrics, source) },
             showTopSeparator = true,
         )
@@ -3467,6 +3467,7 @@ private fun GeneralSettings(context: android.content.Context) {
             onSelected = { theme = it; MeloXSettingsPreferences.setString(context, "theme_mode", it.name) },
             grouped = true,
         )
+        MeloXAccentSettings(context)
         SettingsToggleRow(
             context,
             stringResource(R.string.settings_split_screen),

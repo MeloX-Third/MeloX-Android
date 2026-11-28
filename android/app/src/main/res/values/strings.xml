@@ -1675,4 +1675,7 @@
     <string name="settings_mcp_copy_token">Copy token</string>
     <string name="settings_mcp_copied">Token copied</string>
     <string name="settings_mcp_failed">MCP failed to start: %1$s</string>
+    <string name="settings_accent_color">Accent color</string>
+    <string name="settings_accent_default">Restore default</string>
+    <string name="settings_accent_apply">Apply</string>
 </resources>

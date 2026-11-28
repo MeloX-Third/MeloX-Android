@@ -195,7 +195,9 @@ fun MeloXGlassToggle(
     modifier: Modifier = Modifier,
 ) {
     val dark = isMeloXDarkTheme()
-    val accent = if (dark) Color(0xFF30D158) else Color(0xFF34C759)
+    val accent = if (com.lladlam.melox.ui.settings.MeloXSettingsRuntime.accentHex.isNotBlank()) {
+        com.lladlam.melox.ui.theme.meloXAccent()
+    } else if (dark) Color(0xFF30D158) else Color(0xFF34C759)
     val track = if (dark) Color(0xFF787880).copy(alpha = 0.36f) else Color(0xFF787878).copy(alpha = 0.20f)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val haptics = LocalHapticFeedback.current
