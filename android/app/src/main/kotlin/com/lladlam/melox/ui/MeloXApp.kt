@@ -2575,7 +2575,7 @@ private fun MeloXBottomChrome(
                 // 「涂料下沉」试验（tint 搬进捕获层、真机无差异）已回退。
                 // 只影响 L2 捕获层（水珠透出的红）；毛玻璃模式 / 收缩态圆心标仍用
                 // meloXAccent()。
-                val accentColor = Color(0xFFFF0000)
+                val accentColor = if (MeloXSettingsRuntime.accentHex.isEmpty()) Color(0xFFFF0000) else meloXAccent()
 
                 // ══ Layer 1：可见面板（BiliNext 原样）════════════════════════════
                 // ⚠ **收缩态必须把 tab 行淡出**（2026-09-25 修 bug）：
