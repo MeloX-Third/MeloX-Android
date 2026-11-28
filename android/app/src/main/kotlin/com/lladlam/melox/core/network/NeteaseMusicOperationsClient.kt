@@ -684,18 +684,23 @@ private fun collectWikiUiText(ui: JSONObject?, lines: MutableList<String>) {
         value ?: return null
         val id = value.optLong("userId", 0L)
         if (id <= 0L) return null
+        val remarkName = value.optCleanString("remarkName")
+        val nickname = value.optCleanString("nickname")
+        val avatarUrl = value.optCleanString("avatarUrl").takeIf(String::isNotBlank)
+        val signature = value.optCleanString("signature")
         return MeloXMessageContact(
             id = id,
-            name = value.optString("remarkName").ifBlank { value.optString("nickname") }.ifBlank { "网易云用户" },
-            avatarUrl = secure(value.optString("avatarUrl").takeIf(String::isNotBlank)),
-            signature = value.optString("signature"),
+            name = remarkName.ifBlank { nickname }.ifBlank { "网易云用户" },
+            avatarUrl = secure(avatarUrl),
+            signature = signature,
         )
     }
 
     private fun parsePrivateMessagePayload(serialized: String): MeloXPrivateMessagePayload {
-        val payload = runCatching { JSONObject(serialized) }.getOrNull()
-        if (payload == null) return MeloXPrivateMessagePayload(serialized, null)
-        val text = payload.optString("msg").trim()
+        val cleanRaw = serialized.trim().takeUnless { it.equals("null", ignoreCase = true) }.orEmpty()
+        val payload = runCatching { JSONObject(cleanRaw) }.getOrNull()
+        if (payload == null) return MeloXPrivateMessagePayload(cleanRaw, null)
+        val text = payload.optCleanString("msg")
         val resource = listOf(
             MeloXPrivateMessageResourceKind.Song to payload.optJSONObject("song"),
             MeloXPrivateMessageResourceKind.Playlist to payload.optJSONObject("playlist"),
@@ -714,21 +719,28 @@ private fun collectWikiUiText(ui: JSONObject?, lines: MutableList<String>) {
         val artists = value.optJSONArray("ar") ?: value.optJSONArray("artists")
         val artistText = buildList {
             if (artists != null) for (index in 0 until artists.length()) {
-                artists.optJSONObject(index)?.optString("name")?.takeIf(String::isNotBlank)?.let(::add)
+                artists.optJSONObject(index)?.optCleanString("name")?.takeIf(String::isNotBlank)?.let(::add)
             }
         }.joinToString(" / ")
-        val creator = value.optJSONObject("creator")?.optString("nickname").orEmpty()
+        val creator = value.optJSONObject("creator")?.optCleanString("nickname").orEmpty()
         return MeloXPrivateMessageResource(
             kind = kind,
             id = id,
-            title = value.optString("name").ifBlank { "网易云音乐" },
+            title = value.optCleanString("name").ifBlank { "网易云音乐" },
             subtitle = if (kind == MeloXPrivateMessageResourceKind.Playlist) creator else artistText,
             artworkUrl = secure(when (kind) {
-                MeloXPrivateMessageResourceKind.Song -> album?.optString("picUrl")
-                MeloXPrivateMessageResourceKind.Playlist -> value.optString("coverImgUrl").ifBlank { value.optString("picUrl") }
-                MeloXPrivateMessageResourceKind.Album -> value.optString("picUrl")
+                MeloXPrivateMessageResourceKind.Song -> album?.optCleanString("picUrl")
+                MeloXPrivateMessageResourceKind.Playlist -> value.optCleanString("coverImgUrl").ifBlank { value.optCleanString("picUrl") }
+                MeloXPrivateMessageResourceKind.Album -> value.optCleanString("picUrl")
             }?.takeIf(String::isNotBlank)),
         )
+    }
+
+    /** 规避 Android JSONObject.optString 对 JSON null 值返回字面字符串 "null" 的坑。 */
+    private fun JSONObject.optCleanString(key: String): String {
+        if (isNull(key)) return ""
+        val raw = optString(key, "").trim()
+        return if (raw.equals("null", ignoreCase = true)) "" else raw
     }
 
     private fun parseListenTogetherRoom(value: JSONObject?): MeloXListenTogetherRoom? {
