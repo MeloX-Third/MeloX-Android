@@ -165,51 +165,101 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     @Volatile private var screenInteractive = true
     private var audioOffloadAllowed: Boolean? = null
     private var screenStateReceiverRegistered = false
+    private var sleepTimerScheduledEndMs = 0L
+    private val sleepTimerRunnable = Runnable {
+        sleepTimerScheduledEndMs = 0L
+        player?.let(::enforceSleepTimer)
+    }
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
                     screenInteractive = false
                     superLyricPublisher?.pauseForScreenOff()
+                    player?.let(::persistQueuePositionIfEnabled)
+                    handler.removeCallbacks(queuePersistRunnable)
+                    if (!isLanSessionActive()) {
+                        handler.removeCallbacks(lanStateRunnable)
+                    }
+                    if (mixStartedAt == 0L && !MeloXPlaybackModePreferences.autoMix(this@MeloXPlaybackService)) {
+                        handler.removeCallbacks(modeMonitor)
+                        scheduleSleepTimerIfNeeded()
+                    }
                 }
                 Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
                     val wasOff = !screenInteractive
                     screenInteractive = true
                     if (wasOff) {
+                        handler.removeCallbacks(sleepTimerRunnable)
+                        sleepTimerScheduledEndMs = 0L
                         handler.removeCallbacks(modeMonitor)
                         handler.post(modeMonitor)
+                        handler.removeCallbacks(queuePersistRunnable)
+                        handler.postDelayed(queuePersistRunnable, QUEUE_PERSIST_INTERVAL_MS)
+                        if (isLanSessionActive()) {
+                            handler.removeCallbacks(lanStateRunnable)
+                            handler.post(lanStateRunnable)
+                        } else {
+                            player?.let { lanPlayback = buildLanPlayback(it) }
+                        }
                         superLyricPublisher?.syncPlayback()
                     }
                 }
             }
         }
     }
+
+    private fun isLanSessionActive(): Boolean =
+        MeloXLanRuntime.isCasting() ||
+            MeloXLanRuntime.isHostingTogether() ||
+            MeloXLanRuntime.isGuestTogether() ||
+            com.lladlam.melox.dlna.DlnaSession.active
+
+    private fun scheduleSleepTimerIfNeeded() {
+        val end = MeloXSettingsPreferences.long(this, SLEEP_TIMER_END_KEY, 0L)
+        if (end <= 0L) {
+            handler.removeCallbacks(sleepTimerRunnable)
+            sleepTimerScheduledEndMs = 0L
+            return
+        }
+        val remainingMs = (end - System.currentTimeMillis()).coerceAtLeast(0L)
+        if (sleepTimerScheduledEndMs == end) return
+        handler.removeCallbacks(sleepTimerRunnable)
+        sleepTimerScheduledEndMs = end
+        handler.postDelayed(sleepTimerRunnable, remainingMs)
+    }
+
     private val lanStateRunnable = object : Runnable {
         override fun run() {
-            val lanActive = MeloXLanRuntime.isCasting() ||
-                MeloXLanRuntime.isHostingTogether() ||
-                MeloXLanRuntime.isGuestTogether() ||
-                com.lladlam.melox.dlna.DlnaSession.active
-            if (lanActive || screenInteractive) {
+            val lanActive = isLanSessionActive()
+            if (lanActive) {
                 player?.let {
                     lanPlayback = buildLanPlayback(it)
                 }
-                if (lanActive) {
-                    MeloXLanRuntime.onPlaybackUpdated()
-                }
+                MeloXLanRuntime.onPlaybackUpdated()
+                handler.postDelayed(this, 100L)
+            } else if (screenInteractive) {
+                player?.let { lanPlayback = buildLanPlayback(it) }
+                handler.postDelayed(this, 2_000L)
             }
-            val nextDelayMs = when {
-                lanActive -> 100L
-                screenInteractive -> 500L
-                else -> IDLE_MONITOR_INTERVAL_MS
-            }
-            handler.postDelayed(this, nextDelayMs)
         }
     }
+
+    private val isOplusDevice: Boolean by lazy {
+        val m = Build.MANUFACTURER.orEmpty()
+        listOf("OPPO", "OnePlus", "realme", "OPlus").any { m.equals(it, ignoreCase = true) }
+    }
+    private val isXiaomiDevice: Boolean by lazy {
+        val m = Build.MANUFACTURER.orEmpty()
+        listOf("Xiaomi", "Redmi", "POCO", "BlackShark").any { m.equals(it, ignoreCase = true) }
+    }
+    private val isVivoDevice: Boolean by lazy { VivoAtomicIslandBridge.isSupported() }
 
     private var colorOsLyricsPublisher: ColorOsLyricsPublisher? = null
     private var superLyricPublisher: SuperLyricPublisher? = null
     private var systemLyricHasTranslation = false
+    private var systemLyricsExternalSongKey: String? = null
+    private var systemLyricsLastNotificationKey: String? = null
     private var systemLyricsSessionGeneration = 0L
     private var updatingSystemLyricsMetadata = false
     private var mixAnalysisJob: Job? = null
@@ -628,8 +678,15 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                 }
             }
             val nextTickMs = when {
-                mixStartedAt > 0L -> ACTIVE_MONITOR_INTERVAL_MS
-                !screenInteractive -> IDLE_MONITOR_INTERVAL_MS
+                mixStartedAt > 0L -> AUTOMIX_MONITOR_INTERVAL_MS
+                !screenInteractive -> {
+                    if (MeloXPlaybackModePreferences.autoMix(this@MeloXPlaybackService)) {
+                        IDLE_MONITOR_INTERVAL_MS
+                    } else {
+                        scheduleSleepTimerIfNeeded()
+                        return
+                    }
+                }
                 active?.isPlaying == true -> ACTIVE_MONITOR_INTERVAL_MS
                 active?.currentMediaItem != null -> PAUSED_MONITOR_INTERVAL_MS
                 else -> IDLE_MONITOR_INTERVAL_MS
@@ -813,9 +870,11 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             .build()
         publishSystemFavoriteCustomActions()
         refreshNotificationButtons()
-        mediaSession?.let { session ->
-            runCatching { colorOsLyricsPublisher = ColorOsLyricsPublisher(this, session) }
-                .onFailure { Log.w(TAG, "ColorOS lyrics publisher unavailable", it) }
+        if (isOplusDevice) {
+            mediaSession?.let { session ->
+                runCatching { colorOsLyricsPublisher = ColorOsLyricsPublisher(this, session) }
+                    .onFailure { Log.w(TAG, "ColorOS lyrics publisher unavailable", it) }
+            }
         }
         runCatching { superLyricPublisher = SuperLyricPublisher(active, serviceScope) }
             .onFailure { Log.w(TAG, "SuperLyricApi publisher unavailable", it) }
@@ -838,6 +897,10 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         MeloXCastAudioTap.setStateChangeListener {
             handler.post {
                 player?.let(::syncAudioOffloadPolicy)
+                if (isLanSessionActive()) {
+                    handler.removeCallbacks(lanStateRunnable)
+                    handler.post(lanStateRunnable)
+                }
             }
         }
         lanPlayback = buildLanPlayback(active)
@@ -1019,6 +1082,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
     }
 
     private fun scheduleBackgroundAnalysis(item: MediaItem) {
+        if (!MeloXPlaybackModePreferences.autoMix(this) && !MeloXPlaybackModePreferences.smartQueue(this)) return
         if (!MeloXAudioAnalysisPreferences.persistentEnabled(this)) return
         backgroundAnalysisScheduledId = item.mediaId
         Log.i(TAG, "Background audio analysis scheduled: ${item.mediaId}")
@@ -2034,7 +2098,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             return
         }
         mediaId ?: return
-        if (!metadataEnabled && !effectiveNotification && !VivoAtomicIslandBridge.isSupported()) {
+        if (!metadataEnabled && !effectiveNotification && !isVivoDevice) {
             restoreSystemLyricsMetadata(active)
             superLyricPublisher?.stop()
             colorOsLyricsPublisher?.setLyrics(null, null)
@@ -2049,36 +2113,40 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         val now = SystemClock.elapsedRealtime()
         val lineChanged = index != systemLyricsLastIndex
         val playbackChanged = active.isPlaying != systemLyricsLastPlaying
-        val periodicRefresh = now - systemLyricsLastDispatchRealtimeMs >= 1_000L
-        if (!lineChanged && !playbackChanged && !periodicRefresh) return
+        val externalSongKey = "$mediaId|${System.identityHashCode(document)}|${MeloXSettingsRuntime.showLyricTranslation}|${MeloXSettingsRuntime.showLyricRomanization}"
+        val externalSongChanged = metadataEnabled && externalSongKey != systemLyricsExternalSongKey
+        if (!lineChanged && !playbackChanged && !externalSongChanged) return
         systemLyricsLastIndex = index
         systemLyricsLastPlaying = active.isPlaying
         systemLyricsLastDispatchRealtimeMs = now
-        systemLyricHasTranslation = document.lines.any { !it.translation.isNullOrBlank() }
         var line = document.lines.getOrNull(index)?.text?.trim().orEmpty()
         val nextLine = document.lines.getOrNull(index + 1)?.text?.trim().orEmpty()
         val original = systemLyricsOriginalMetadata ?: currentItem.mediaMetadata.also {
             systemLyricsOriginalMetadata = it
         }
-        // External lyric consumers: ColorOS lockscreen lyrics (lyricInfo) and
-        // SuperLyricApi publishers reuse the same timeline as the native UI.
-        if (metadataEnabled) {
-            runCatching {
-                val payload = buildColorOsLyricPayload(
-                    document = document,
-                    songId = legacyNumericSystemId(mediaId),
-                    songName = original.title?.toString().orEmpty(),
-                    artistName = original.artist?.toString().orEmpty(),
-                    albumName = original.albumTitle?.toString(),
-                    packageName = packageName,
-                    sessionGeneration = systemLyricsSessionGeneration,
-                )
-                colorOsLyricsPublisher?.setLyrics(
-                    mediaId = mediaId,
-                    payload = payload,
-                    hasTranslation = systemLyricHasTranslation,
-                )
-            }.onFailure { Log.w(TAG, "Unable to publish ColorOS lyrics", it) }
+        // External lyric consumers: only initialize full-track payloads once per song/document
+        // and route OEM-specific bridges only to matching devices.
+        if (externalSongChanged) {
+            systemLyricsExternalSongKey = externalSongKey
+            if (isOplusDevice && colorOsLyricsPublisher != null) {
+                systemLyricHasTranslation = document.lines.any { !it.translation.isNullOrBlank() }
+                runCatching {
+                    val payload = buildColorOsLyricPayload(
+                        document = document,
+                        songId = legacyNumericSystemId(mediaId),
+                        songName = original.title?.toString().orEmpty(),
+                        artistName = original.artist?.toString().orEmpty(),
+                        albumName = original.albumTitle?.toString(),
+                        packageName = packageName,
+                        sessionGeneration = systemLyricsSessionGeneration,
+                    )
+                    colorOsLyricsPublisher?.setLyrics(
+                        mediaId = mediaId,
+                        payload = payload,
+                        hasTranslation = systemLyricHasTranslation,
+                    )
+                }.onFailure { Log.w(TAG, "Unable to publish ColorOS lyrics", it) }
+            }
             runCatching {
                 superLyricPublisher?.setSong(
                     document = document,
@@ -2091,6 +2159,9 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
                 )
                 superLyricPublisher?.syncPlayback()
             }.onFailure { Log.w(TAG, "Unable to publish SuperLyric lyrics", it) }
+        } else if (metadataEnabled && playbackChanged) {
+            runCatching { superLyricPublisher?.syncPlayback() }
+                .onFailure { Log.w(TAG, "Unable to sync SuperLyric playback state", it) }
         }
         if (line.isBlank()) {
             line = renderNotificationTemplate(MeloXSettingsRuntime.lyricNotificationFallback, "", original)
@@ -2098,17 +2169,13 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         }
         if (line.isBlank()) return
         val titleMode = MeloXSettingsRuntime.systemLyricTitleMode
-        val isOplus = Build.MANUFACTURER.let { manufacturer ->
-            listOf("OPPO", "OnePlus", "realme", "OPlus").any { manufacturer.equals(it, ignoreCase = true) }
-        }
         // On OPlus devices the ColorOS lyricInfo channel is authoritative;
         // replacing title/artist on top of it makes the lockscreen double-render.
-        if (metadataEnabled && lineChanged && !isOplus) {
+        if (metadataEnabled && lineChanged && !isOplusDevice) {
             val originalExtras = Bundle(original.extras ?: Bundle()).apply {
                 putString(SYSTEM_ORIGINAL_TITLE_KEY, original.title?.toString().orEmpty())
                 putString(SYSTEM_ORIGINAL_ARTIST_KEY, original.artist?.toString().orEmpty())
             }
-            val titleMode = MeloXSettingsRuntime.systemLyricTitleMode
             val lyricMetadata = original.buildUpon().apply {
                 if (titleMode == MeloXSystemLyricTitleMode.LyricFirst) {
                     setTitle(line)
@@ -2131,7 +2198,14 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         val notificationAllowedByScene =
             (!MeloXSettingsRuntime.lyricNotificationBackgroundOnly || !MeloXAppVisibility.isForeground) &&
                 (!MeloXSettingsRuntime.lyricNotificationDismissWhenPaused || active.isPlaying)
-        if (effectiveNotification && notificationAllowedByScene) postLyricsNotification(line, nextLine, original) else {
+        if (effectiveNotification && notificationAllowedByScene) {
+            val notifKey = "$mediaId|$line|$nextLine|${active.isPlaying}"
+            if (notifKey != systemLyricsLastNotificationKey) {
+                systemLyricsLastNotificationKey = notifKey
+                postLyricsNotification(line, nextLine, original)
+            }
+        } else {
+            systemLyricsLastNotificationKey = null
             getSystemService(NotificationManager::class.java).cancel(LYRICS_NOTIFICATION_ID)
         }
     }
@@ -2172,7 +2246,7 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
 
     private fun resetSystemLyrics(item: MediaItem?) {
         lyricsNotificationArtwork.clear()
-        VivoAtomicIslandBridge.clear(this)
+        if (isVivoDevice) VivoAtomicIslandBridge.clear(this)
         colorOsLyricsPublisher?.setLyrics(null, null)
         superLyricPublisher?.stop()
         systemLyricsSessionGeneration++
@@ -2182,6 +2256,8 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         systemLyricsDocument = null
         systemLyricsOriginalMetadata = item?.mediaMetadata
         systemLyricsLastIndex = Int.MIN_VALUE
+        systemLyricsExternalSongKey = null
+        systemLyricsLastNotificationKey = null
         systemLyricsLastDispatchRealtimeMs = 0L
     }
 
@@ -2277,17 +2353,19 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
             if (duration > 0L) builder.setProgress(1_000, ((player?.currentPosition ?: 0L) * 1_000L / duration).toInt().coerceIn(0, 1_000), false)
         }
         val notification = builder.build()
-        VivoAtomicIslandBridge.publish(
-            context = this,
-            line = line,
-            songTitle = metadata.title?.toString().orEmpty(),
-            artist = metadata.artist?.toString().orEmpty(),
-            positionMs = player?.currentPosition ?: 0L,
-            durationMs = player?.duration?.takeIf { it != C.TIME_UNSET } ?: 0L,
-            isPlaying = player?.isPlaying == true,
-            clickIntent = pendingIntent,
-        )
-        if (MeloXSettingsPreferences.boolean(this, "hyperos_super_island_enabled", false)) {
+        if (isVivoDevice) {
+            VivoAtomicIslandBridge.publish(
+                context = this,
+                line = line,
+                songTitle = metadata.title?.toString().orEmpty(),
+                artist = metadata.artist?.toString().orEmpty(),
+                positionMs = player?.currentPosition ?: 0L,
+                durationMs = player?.duration?.takeIf { it != C.TIME_UNSET } ?: 0L,
+                isPlaying = player?.isPlaying == true,
+                clickIntent = pendingIntent,
+            )
+        }
+        if (isXiaomiDevice && MeloXSettingsPreferences.boolean(this, "hyperos_super_island_enabled", false)) {
             runCatching {
                 HyperOsFocusBridge.playbackPayload(
                     context = this,
@@ -2723,13 +2801,14 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         playbackHistoryReporter.close()
         handler.removeCallbacks(modeMonitor)
         handler.removeCallbacks(queuePersistRunnable)
+        handler.removeCallbacks(sleepTimerRunnable)
         recommendationJob?.cancel()
         playlistAnalysisJob?.cancel()
         backgroundAnalysisJob?.cancel()
         smartQueueJob?.cancel()
         prefetchJob?.cancel()
         systemLyricsJob?.cancel()
-        VivoAtomicIslandBridge.clear(this)
+        if (isVivoDevice) VivoAtomicIslandBridge.clear(this)
         getSystemService(NotificationManager::class.java).cancel(LYRICS_NOTIFICATION_ID)
         serviceScope.cancel()
         cancelPreparedMix(releaseStandby = true)
@@ -2772,12 +2851,13 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
      * `onDestroy`/`onTaskRemoved` 走 `immediate=true` 的 `commit()` 保证退出前落盘。
      */
     private var lastQueuePersistElapsedMs = 0L
-    private val QUEUE_PERSIST_INTERVAL_MS = 10_000L
+    private val QUEUE_PERSIST_INTERVAL_MS = 60_000L
     private val queuePersistRunnable = object : Runnable {
         override fun run() {
+            if (!screenInteractive) return
             val active = player
             if (active != null && active.isPlaying && active.mediaItemCount > 0) {
-                requestQueuePersist(force = false)
+                persistQueuePositionIfEnabled(active)
             }
             handler.postDelayed(this, QUEUE_PERSIST_INTERVAL_MS)
         }
@@ -3155,8 +3235,9 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         const val AUTOPLAY_PRELOAD_MS = 60_000L
         const val AUTOPLAY_RETRY_MS = 15_000L
         const val PREFETCH_TRACK_COUNT = 3
-        const val PLAYBACK_MAINTENANCE_INTERVAL_MS = 1_000L
-        const val QUEUE_POSITION_PERSIST_INTERVAL_MS = 2_000L
+        const val PLAYBACK_MAINTENANCE_INTERVAL_MS = 2_000L
+        const val QUEUE_POSITION_PERSIST_INTERVAL_MS = 15_000L
+        const val AUTOMIX_MONITOR_INTERVAL_MS = 100L
         const val AUTOMIX_ENVELOPE_INTERVAL_MS = 20L
         const val AUTOMIX_FAILURE_COOLDOWN_MS = 30_000L
         const val SMART_QUEUE_ANALYSIS_CONCURRENCY = 2
@@ -3165,8 +3246,8 @@ class MeloXPlaybackService : MediaSessionService(), MeloXLanHost {
         const val SMART_QUEUE_ANALYSIS_WINDOW = 6
         const val ANALYSIS_FALLBACK_GUARD_MS = 1_200L
         const val ANALYSIS_WINDOW_MS = 30_000L
-        const val ACTIVE_MONITOR_INTERVAL_MS = 100L
-        const val PAUSED_MONITOR_INTERVAL_MS = 500L
+        const val ACTIVE_MONITOR_INTERVAL_MS = 250L
+        const val PAUSED_MONITOR_INTERVAL_MS = 1_000L
         const val IDLE_MONITOR_INTERVAL_MS = 2_000L
         const val SETTINGS_SNAPSHOT_INTERVAL_MS = 1_000L
         const val SLEEP_TIMER_END_KEY = "playback_sleep_timer_end_epoch_ms"
