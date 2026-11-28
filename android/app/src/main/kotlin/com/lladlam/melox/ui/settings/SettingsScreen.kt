@@ -324,8 +324,13 @@ fun SettingsScreen(
 
     val normalized = search.trim().lowercase()
     val hasPluginExtensions = hasPluginUiEntries(PluginUiSlot.Extensions, normalized)
+    val lyricsSearchItems = if (normalized.isBlank()) emptyList() else listOf(
+        SettingsItem(SettingsRoute.SystemPlayback, stringResource(R.string.settings_route_system_playback), "▣", "系统歌词显示 通知 锁屏 system lyrics"),
+        SettingsItem(SettingsRoute.FloatingLyrics, stringResource(R.string.settings_route_floating), "▤", "悬浮窗歌词 悬浮歌词 floating lyrics"),
+    )
     val visibleSections = SettingsSections.mapNotNull { section ->
-        val filtered = section.items.filter { item ->
+        val items = if (section.title == "应用") section.items + lyricsSearchItems else section.items
+        val filtered = items.filter { item ->
             val supported = when (item.route) {
                 SettingsRoute.Messages, SettingsRoute.ListenTogether -> sourceId.builtIn == MusicSource.Netease
                 SettingsRoute.KugouLiteVip -> sourceId.builtIn == MusicSource.KugouLite
